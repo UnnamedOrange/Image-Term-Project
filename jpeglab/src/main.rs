@@ -2,6 +2,9 @@ use std::io;
 use std::path::Path;
 
 use clap::Parser;
+use image::io::Reader as ImageReader;
+use image::ColorType;
+use image::GenericImageView;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -14,6 +17,21 @@ struct Args {
 }
 
 fn handle_others(path: &Path) -> io::Result<()> {
+    let reader = ImageReader::open(path)?;
+    let image = reader
+        .decode()
+        .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "Fail to decode the BMP file"))?;
+
+    let (width, height) = image.dimensions();
+    println!("[INFO] 输入位图的尺寸为 {}x{}", width, height);
+
+    let color = image.color();
+    if color != ColorType::Rgb8 {
+        println!("[WARNING] 不是 Rgb8 的颜色类型：{:#?}", color);
+    }
+
+    let rgb = image.into_rgb8();
+
     todo!()
 }
 
