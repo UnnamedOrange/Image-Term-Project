@@ -1,3 +1,5 @@
+mod jpeglab;
+
 use std::io;
 use std::path::Path;
 
@@ -32,7 +34,7 @@ fn handle_others(path: &Path) -> io::Result<()> {
 
     let rgb = image.into_rgb8();
 
-    todo!()
+    jpeglab::encode(&rgb)
 }
 
 fn handle_jpg(path: &Path) -> io::Result<()> {
