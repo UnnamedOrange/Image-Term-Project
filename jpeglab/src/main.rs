@@ -20,9 +20,9 @@ struct Args {
 
 fn handle_others(path: &Path) -> io::Result<()> {
     let reader = ImageReader::open(path)?;
-    let image = reader
-        .decode()
-        .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "Fail to decode the BMP file"))?;
+    let image = reader.decode().map_err(|_| {
+        io::Error::new(io::ErrorKind::InvalidData, "Fail to decode the bitmap file")
+    })?;
 
     let (width, height) = image.dimensions();
     println!("[INFO] 输入位图的尺寸为 {}x{}", width, height);
