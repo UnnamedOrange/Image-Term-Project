@@ -20,14 +20,14 @@ pub fn encode(image: &RgbImage) -> io::Result<()> {
     let yuv_image = encode_step1(image)?;
     show_step1(&yuv_image);
 
-    let mcu_collections = encode_step2(&yuv_image)?;
-    show_step2(&mcu_collections);
+    let mcu_collection = encode_step2(&yuv_image)?;
+    show_step2(&mcu_collection);
 
-    let dct_mcu_collections = encode_step3(&mcu_collections)?;
-    show_step3(&dct_mcu_collections);
+    let dct_mcu_collection = encode_step3(&mcu_collection)?;
+    show_step3(&dct_mcu_collection);
 
-    let quantized_mcu_collections = encode_step4(&dct_mcu_collections)?;
-    show_step4(&quantized_mcu_collections);
+    let quantized_mcu_collection = encode_step4(&dct_mcu_collection)?;
+    show_step4(&quantized_mcu_collection);
 
     todo!()
 }
