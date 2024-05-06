@@ -2,6 +2,7 @@ pub mod encode_step1;
 pub mod encode_step2;
 pub mod encode_step3;
 pub mod encode_step4;
+pub mod encode_step5;
 
 use std::io;
 
@@ -15,6 +16,8 @@ use encode_step3::encode_step3;
 use encode_step3::show_step3;
 use encode_step4::encode_step4;
 use encode_step4::show_step4;
+use encode_step5::encode_step5;
+use encode_step5::show_step5;
 
 pub fn encode(image: &RgbImage) -> io::Result<()> {
     let yuv_image = encode_step1(image)?;
@@ -28,6 +31,9 @@ pub fn encode(image: &RgbImage) -> io::Result<()> {
 
     let quantized_mcu_collection = encode_step4(&dct_mcu_collection)?;
     show_step4(&quantized_mcu_collection);
+
+    let zigzag_mcu_collection = encode_step5(&quantized_mcu_collection)?;
+    show_step5(&zigzag_mcu_collection);
 
     todo!()
 }
