@@ -3,6 +3,7 @@ pub mod encode_step2;
 pub mod encode_step3;
 pub mod encode_step4;
 pub mod encode_step5;
+pub mod encode_step6;
 
 use std::io;
 
