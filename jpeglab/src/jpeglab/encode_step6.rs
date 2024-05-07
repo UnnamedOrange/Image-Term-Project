@@ -10,7 +10,7 @@ use super::encode_step5::ZigzagMcuCollection;
 pub struct JpegHuffmanTable {
     /// 长度为 (n + 1) 的霍夫曼码字有 `codes[n]` 个。
     /// 共有 `self.codes.iter().map(|&x| x as usize).sum::<usize>()` 个霍夫曼码字。
-    /// 只使用 `codes` 就可以生成出霍夫曼树，因为是范式霍夫曼编码，是按一定规则生成的。
+    /// 只使用 `codes` 就可以生成出霍夫曼树，因为是范式霍夫曼编码，是按一定规则生成的，见 `generate_bits`。
     pub codes: [u8; 16],
     /// 使用 `codes` 按范式霍夫曼编码依次生成的霍夫曼码字对应的符号，每个符号占一个字节。
     pub values: Vec<u8>,
@@ -429,6 +429,26 @@ fn generate_huffman_table(content: &str) -> (JpegHuffmanTable, Vec<BitVec>) {
     (JpegHuffmanTable { codes, values }, bits_vec)
 }
 
+impl JpegHuffmanTable {
+    /// 根据霍夫曼码表的 codes 字段生成霍夫曼码，values[i] 的霍夫曼码为 ret[i]。
+    pub fn generate_bits(&self) -> Vec<BitVec> {
+        let mut ret = vec![];
+        let mut c = 0_usize;
+        for i in 0..self.codes.len() {
+            let length = i + 1;
+            for _ in 0..self.codes[i] {
+                let mut bits = c.view_bits::<Lsb0>().to_owned();
+                bits.resize(length, false);
+                bits.reverse();
+                ret.push(bits);
+                c += 1;
+            }
+            c *= 2;
+        }
+        ret
+    }
+}
+
 lazy_static! {
     pub static ref DEFAULT_LUMINANCE_DC_HUFFMAN_TABLE: JpegHuffmanTable =
         generate_huffman_table(LUMINANCE_DC).0;
@@ -459,5 +479,20 @@ mod test {
         print_huffman_table(&DEFAULT_CHROMA_DC_HUFFMAN_TABLE);
         print_huffman_table(&DEFAULT_LUMINANCE_AC_HUFFMAN_TABLE);
         print_huffman_table(&DEFAULT_CHROMA_AC_HUFFMAN_TABLE);
+    }
+
+    #[test]
+    fn test_generate_bits() {
+        let (table, bits) = generate_huffman_table(LUMINANCE_DC);
+        assert_eq!(table.generate_bits(), bits);
+
+        let (table, bits) = generate_huffman_table(CHROMA_DC);
+        assert_eq!(table.generate_bits(), bits);
+
+        let (table, bits) = generate_huffman_table(LUMINANCE_AC);
+        assert_eq!(table.generate_bits(), bits);
+
+        let (table, bits) = generate_huffman_table(CHROMA_AC);
+        assert_eq!(table.generate_bits(), bits);
     }
 }
