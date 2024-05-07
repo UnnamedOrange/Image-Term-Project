@@ -19,6 +19,7 @@ use encode_step4::encode_step4;
 use encode_step4::show_step4;
 use encode_step5::encode_step5;
 use encode_step5::show_step5;
+use encode_step6::encode_step6;
 
 pub fn encode(image: &RgbImage) -> io::Result<()> {
     let yuv_image = encode_step1(image)?;
@@ -35,6 +36,8 @@ pub fn encode(image: &RgbImage) -> io::Result<()> {
 
     let zigzag_mcu_collection = encode_step5(&quantized_mcu_collection)?;
     show_step5(&zigzag_mcu_collection);
+
+    let jpeg_output_data = encode_step6(&zigzag_mcu_collection)?;
 
     todo!()
 }

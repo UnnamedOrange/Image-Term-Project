@@ -1,3 +1,5 @@
+use std::io;
+
 use bitvec::prelude::*;
 use lazy_static::lazy_static;
 
@@ -460,11 +462,78 @@ lazy_static! {
         generate_huffman_table(CHROMA_AC).0;
 }
 
+/// DC 编码器的差分性质由相邻 MCU 之间的同种类 DU 使用，YUV422 共需要 3 个 DC 编码器状态。
+struct DcEncoder<'a> {
+    pub pred: i16,
+    pub huffman_table: &'a JpegHuffmanTable,
+}
+
+/// AC 编码器的行程编码性质在单个 DU 内部使用，有多少个 DU 就需要新建多少个 AC 编码器状态。
+struct AcEncoder<'a> {
+    pub zero_run_length: usize,
+    pub huffman_table: &'a JpegHuffmanTable,
+}
+
+impl<'a> DcEncoder<'a> {
+    pub fn new(huffman_table: &'a JpegHuffmanTable) -> Self {
+        Self {
+            pred: 0,
+            huffman_table,
+        }
+    }
+}
+
+impl<'a> AcEncoder<'a> {
+    pub fn new(huffman_table: &'a JpegHuffmanTable) -> Self {
+        Self {
+            zero_run_length: 0,
+            huffman_table,
+        }
+    }
+}
+
+trait JpegScanEncode {
+    fn next(&mut self, value: i16) -> BitVec;
+}
+
+impl<'a> JpegScanEncode for DcEncoder<'a> {
+    fn next(&mut self, value: i16) -> BitVec {
+        todo!()
+    }
+}
+
+impl<'a> JpegScanEncode for AcEncoder<'a> {
+    fn next(&mut self, value: i16) -> BitVec {
+        todo!()
+    }
+}
+
+/// 最基本的 JPEG 编码结果，可以据此生成 JPEG 文件。
+/// 但是注意，假设使用 YUV422 采样，使用了默认量化表，使用了默认霍夫曼码表，这些都不在此提及。
+pub struct JpegOutputData {
+    pub original_width: usize,
+    pub original_height: usize,
+    /// 熵编码的最终结果。
+    pub scan: BitVec,
+}
+
 /// 第六步：编码。
 /// 分为直流和交流。
 /// 为了方便，熵编码使用默认的霍夫曼编码。
 /// 尽管 DC 分量有差分编码，仍然是以 DU 为单位进行编码的。
-pub fn encode_step6(zigzag_mcu_collection: &ZigzagMcuCollection) {}
+pub fn encode_step6(zigzag_mcu_collection: &ZigzagMcuCollection) -> io::Result<JpegOutputData> {
+    let mut scan = bitvec![];
+    let mcus = &zigzag_mcu_collection.zigzag_mcus;
+
+    for mcu in mcus {
+    }
+
+    Ok(JpegOutputData {
+        original_width: zigzag_mcu_collection.original_width,
+        original_height: zigzag_mcu_collection.original_height,
+        scan,
+    })
+}
 
 #[cfg(test)]
 mod test {
