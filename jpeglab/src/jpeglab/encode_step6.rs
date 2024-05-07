@@ -380,7 +380,7 @@ F9	16	1111111111111101
 FA	16	1111111111111110"#;
 
 /// 根据参考网址的默认霍夫曼码表生成我的霍夫曼码表结构体。
-/// 返回的元组的第二个是用于验证的码字，按码表的 values 排序。
+/// 返回的元组的第二个是用于验证的码字，按码表的 `values` 排序。
 fn generate_huffman_table(content: &str) -> (JpegHuffmanTable, Vec<BitVec>) {
     let mut codes = [0_u8; 16];
     let mut values = vec![];
@@ -438,7 +438,7 @@ fn generate_huffman_table(content: &str) -> (JpegHuffmanTable, Vec<BitVec>) {
 }
 
 impl JpegHuffmanTable {
-    /// 根据霍夫曼码表的 codes 字段生成霍夫曼码，values[i] 的霍夫曼码为 ret[i]。
+    /// 根据霍夫曼码表的 `codes` 字段生成霍夫曼码，`values[i]` 的霍夫曼码为 `ret[i]`。
     pub fn generate_bits(&self) -> Vec<BitVec> {
         let mut ret = vec![];
         let mut c = 0_usize;
