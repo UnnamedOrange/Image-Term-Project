@@ -550,6 +550,12 @@ impl<'a> JpegScanEncode for AcEncoder<'a> {
     }
 }
 
+impl<'a> AcEncoder<'a> {
+    fn flush(&mut self) -> BitVec {
+        todo!()
+    }
+}
+
 /// 最基本的 JPEG 编码结果，可以据此生成 JPEG 文件。
 /// 但是注意，假设使用 YUV422 采样，使用了默认量化表，使用了默认霍夫曼码表，这些都不在此提及。
 pub struct JpegOutputData {
@@ -579,6 +585,7 @@ pub fn encode_step6(zigzag_mcu_collection: &ZigzagMcuCollection) -> io::Result<J
         for i in 1..du.0.len() {
             ret.append(&mut ac_encoder.next(du.0[i]));
         }
+        ret.append(&mut ac_encoder.flush());
 
         ret
     }
