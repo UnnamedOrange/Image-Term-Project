@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::io;
 
 use bitvec::prelude::*;
@@ -18,6 +19,9 @@ pub struct JpegHuffmanTable {
     /// 使用 `codes` 按范式霍夫曼编码依次生成的霍夫曼码字对应的符号，每个符号占一个字节。
     pub values: Vec<u8>,
 }
+
+#[derive(Debug)]
+pub struct CachedHuffmanTable(pub HashMap<u8, BitVec>);
 
 // 完整的亮度直流、亮度交流、色度直流、色度交流的默认霍夫曼码表参见：
 // https://blog.csdn.net/xiaoyafang123/article/details/120370880
@@ -450,6 +454,15 @@ impl JpegHuffmanTable {
         }
         ret
     }
+
+    pub fn to_cached(&self) -> CachedHuffmanTable {
+        let mut ret = HashMap::new();
+        let bits = self.generate_bits();
+        for (i, &symbol) in self.values.iter().enumerate() {
+            ret.insert(symbol, bits[i].clone());
+        }
+        CachedHuffmanTable(ret)
+    }
 }
 
 lazy_static! {
@@ -466,17 +479,17 @@ lazy_static! {
 /// DC 编码器的差分性质由相邻 MCU 之间的同种类 DU 使用，YUV422 共需要 3 个 DC 编码器状态。
 struct DcEncoder<'a> {
     pub pred: i16,
-    pub huffman_table: &'a JpegHuffmanTable,
+    pub huffman_table: &'a CachedHuffmanTable,
 }
 
 /// AC 编码器的行程编码性质在单个 DU 内部使用，有多少个 DU 就需要新建多少个 AC 编码器状态。
 struct AcEncoder<'a> {
     pub zero_run_length: usize,
-    pub huffman_table: &'a JpegHuffmanTable,
+    pub huffman_table: &'a CachedHuffmanTable,
 }
 
 impl<'a> DcEncoder<'a> {
-    pub fn new(huffman_table: &'a JpegHuffmanTable) -> Self {
+    pub fn new(huffman_table: &'a CachedHuffmanTable) -> Self {
         Self {
             pred: 0,
             huffman_table,
@@ -485,7 +498,7 @@ impl<'a> DcEncoder<'a> {
 }
 
 impl<'a> AcEncoder<'a> {
-    pub fn new(huffman_table: &'a JpegHuffmanTable) -> Self {
+    pub fn new(huffman_table: &'a CachedHuffmanTable) -> Self {
         Self {
             zero_run_length: 0,
             huffman_table,
@@ -529,7 +542,7 @@ pub fn encode_step6(zigzag_mcu_collection: &ZigzagMcuCollection) -> io::Result<J
     fn encode_du(
         du: &ZigzagDu,
         dc_encoder: &mut DcEncoder,
-        ac_huffman_table: &JpegHuffmanTable,
+        ac_huffman_table: &CachedHuffmanTable,
     ) -> BitVec {
         let mut ret = bitvec![];
 
@@ -542,29 +555,34 @@ pub fn encode_step6(zigzag_mcu_collection: &ZigzagMcuCollection) -> io::Result<J
         ret
     }
 
-    let mut dc_encoder_y = DcEncoder::new(&DEFAULT_LUMINANCE_DC_HUFFMAN_TABLE);
-    let mut dc_encoder_u = DcEncoder::new(&DEFAULT_CHROMA_DC_HUFFMAN_TABLE);
-    let mut dc_encoder_v = DcEncoder::new(&DEFAULT_CHROMA_DC_HUFFMAN_TABLE);
+    let luminance_dc_huffman_table = DEFAULT_LUMINANCE_DC_HUFFMAN_TABLE.to_cached();
+    let chroma_dc_huffman_table = DEFAULT_CHROMA_DC_HUFFMAN_TABLE.to_cached();
+    let luminance_ac_huffman_table = DEFAULT_LUMINANCE_AC_HUFFMAN_TABLE.to_cached();
+    let chroma_ac_huffman_table = DEFAULT_CHROMA_AC_HUFFMAN_TABLE.to_cached();
+
+    let mut dc_encoder_y = DcEncoder::new(&luminance_dc_huffman_table);
+    let mut dc_encoder_u = DcEncoder::new(&chroma_dc_huffman_table);
+    let mut dc_encoder_v = DcEncoder::new(&chroma_dc_huffman_table);
     for mcu in mcus {
         scan.append(&mut encode_du(
             &mcu.y0,
             &mut dc_encoder_y,
-            &DEFAULT_LUMINANCE_AC_HUFFMAN_TABLE,
+            &luminance_ac_huffman_table,
         ));
         scan.append(&mut encode_du(
             &mcu.y1,
             &mut dc_encoder_y,
-            &DEFAULT_LUMINANCE_AC_HUFFMAN_TABLE,
+            &luminance_ac_huffman_table,
         ));
         scan.append(&mut encode_du(
             &mcu.cb,
             &mut dc_encoder_u,
-            &DEFAULT_CHROMA_AC_HUFFMAN_TABLE,
+            &chroma_ac_huffman_table,
         ));
         scan.append(&mut encode_du(
             &mcu.cr,
             &mut dc_encoder_v,
-            &DEFAULT_CHROMA_AC_HUFFMAN_TABLE,
+            &chroma_ac_huffman_table,
         ));
     }
 
