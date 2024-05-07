@@ -3,6 +3,7 @@ use std::io;
 use bitvec::prelude::*;
 use lazy_static::lazy_static;
 
+use super::encode_step5::ZigzagDu;
 use super::encode_step5::ZigzagMcuCollection;
 
 /// 按 JPEG 标准定义霍夫曼码表结构体，由长度表和符号表组成，描述了一棵霍夫曼树。
@@ -525,7 +526,46 @@ pub fn encode_step6(zigzag_mcu_collection: &ZigzagMcuCollection) -> io::Result<J
     let mut scan = bitvec![];
     let mcus = &zigzag_mcu_collection.zigzag_mcus;
 
+    fn encode_du(
+        du: &ZigzagDu,
+        dc_encoder: &mut DcEncoder,
+        ac_huffman_table: &JpegHuffmanTable,
+    ) -> BitVec {
+        let mut ret = bitvec![];
+
+        let mut ac_encoder = AcEncoder::new(&ac_huffman_table);
+        ret.append(&mut dc_encoder.next(du.0[0]));
+        for i in 1..du.0.len() {
+            ret.append(&mut ac_encoder.next(du.0[i]));
+        }
+
+        ret
+    }
+
+    let mut dc_encoder_y = DcEncoder::new(&DEFAULT_LUMINANCE_DC_HUFFMAN_TABLE);
+    let mut dc_encoder_u = DcEncoder::new(&DEFAULT_CHROMA_DC_HUFFMAN_TABLE);
+    let mut dc_encoder_v = DcEncoder::new(&DEFAULT_CHROMA_DC_HUFFMAN_TABLE);
     for mcu in mcus {
+        scan.append(&mut encode_du(
+            &mcu.y0,
+            &mut dc_encoder_y,
+            &DEFAULT_LUMINANCE_AC_HUFFMAN_TABLE,
+        ));
+        scan.append(&mut encode_du(
+            &mcu.y1,
+            &mut dc_encoder_y,
+            &DEFAULT_LUMINANCE_AC_HUFFMAN_TABLE,
+        ));
+        scan.append(&mut encode_du(
+            &mcu.cb,
+            &mut dc_encoder_u,
+            &DEFAULT_CHROMA_AC_HUFFMAN_TABLE,
+        ));
+        scan.append(&mut encode_du(
+            &mcu.cr,
+            &mut dc_encoder_v,
+            &DEFAULT_CHROMA_AC_HUFFMAN_TABLE,
+        ));
     }
 
     Ok(JpegOutputData {
