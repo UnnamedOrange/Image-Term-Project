@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::io;
 
+use bitvec::mem::bits_of;
 use bitvec::prelude::*;
 use lazy_static::lazy_static;
 
@@ -512,7 +513,34 @@ trait JpegScanEncode {
 
 impl<'a> JpegScanEncode for DcEncoder<'a> {
     fn next(&mut self, value: i16) -> BitVec {
-        todo!()
+        let mut ret = bitvec![];
+
+        let diff = value - self.pred;
+
+        // 根据表 8.17 将差分值分类。
+        let abs_diff = diff.abs() as u16;
+        let category = abs_diff
+            .view_bits::<Msb0>()
+            .first_one()
+            .map_or(0, |v| (bits_of::<u16>() - 1 - v) + 1) as u8;
+
+        let prefix = self.huffman_table.0.get(&category).unwrap();
+        ret.append(&mut prefix.to_owned());
+        if category != 0 {
+            let abs_remaining = (abs_diff - (1 << (category as u16 - 1))) as usize;
+            let mut abs_bits = abs_remaining.view_bits::<Lsb0>()[..category as usize].to_owned();
+            abs_bits.reverse(); // LSB0 to MSB0.
+            let mut bits = if diff > 0 {
+                abs_bits
+            } else {
+                abs_bits.iter().map(|v| !v).collect()
+            };
+            ret.append(&mut bits);
+        }
+
+        self.pred = value;
+
+        ret
     }
 }
 
@@ -621,5 +649,38 @@ mod test {
 
         let (table, bits) = generate_huffman_table(CHROMA_AC);
         assert_eq!(table.generate_bits(), bits);
+    }
+
+    #[test]
+    fn test_dc_encoder() {
+        let table = DEFAULT_LUMINANCE_DC_HUFFMAN_TABLE.to_cached();
+        let mut encoder = DcEncoder::new(&table);
+
+        let result = encoder.next(14); // Category 4, remainder 6.
+        assert_eq!(
+            result,
+            bits!(
+                1, 0, 1, //
+                0, 1, 1, 0,
+            )
+        );
+
+        let result = encoder.next(114); // 100, Category 7, remainder 36.
+        assert_eq!(
+            result,
+            bits!(
+                1, 1, 1, 1, 0, //
+                0, 1, 0, 0, 1, 0, 0,
+            )
+        );
+
+        let result = encoder.next(-514); // -628, Category A, remainder 116, 1's complement.
+        assert_eq!(
+            result,
+            bits!(
+                1, 1, 1, 1, 1, 1, 1, 0, //
+                1, 1, 1, 0, 0, 0, 1, 0, 1, 1,
+            )
+        );
     }
 }
