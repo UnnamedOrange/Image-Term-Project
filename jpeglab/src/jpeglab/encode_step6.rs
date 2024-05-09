@@ -489,6 +489,43 @@ struct AcEncoder<'a> {
     pub huffman_table: &'a CachedHuffmanTable,
 }
 
+fn get_category(abs_value: u16) -> u8 {
+    // 根据表 8.17 将值分类。
+    abs_value
+        .view_bits::<Msb0>()
+        .first_one()
+        .map_or(0, |v| (bits_of::<u16>() - 1 - v) + 1) as u8
+}
+
+fn entropy_encode_category(
+    huffman_table: &CachedHuffmanTable,
+    value: i16,
+    zrl: Option<u8>,
+) -> BitVec {
+    let mut ret = bitvec![];
+
+    let abs_value = value.abs() as u16;
+    let category = get_category(abs_value);
+    // 符号的高四位表示 0 的行程编码（如果是 AC），符号的低四位表示类别。
+    let symbol = (zrl.unwrap_or(0) << 4) | category;
+
+    let prefix = huffman_table.0.get(&symbol).unwrap();
+    ret.append(&mut prefix.to_owned());
+    if category != 0 {
+        let abs_remaining = (abs_value - (1 << (category as u16 - 1))) as usize;
+        let mut abs_bits = abs_remaining.view_bits::<Lsb0>()[..category as usize].to_owned();
+        abs_bits.reverse(); // LSB0 to MSB0.
+        let mut bits = if value > 0 {
+            abs_bits
+        } else {
+            abs_bits.iter().map(|v| !v).collect()
+        };
+        ret.append(&mut bits);
+    }
+
+    ret
+}
+
 impl<'a> DcEncoder<'a> {
     pub fn new(huffman_table: &'a CachedHuffmanTable) -> Self {
         Self {
@@ -513,33 +550,9 @@ trait JpegScanEncode {
 
 impl<'a> JpegScanEncode for DcEncoder<'a> {
     fn next(&mut self, value: i16) -> BitVec {
-        let mut ret = bitvec![];
-
         let diff = value - self.pred;
-
-        // 根据表 8.17 将差分值分类。
-        let abs_diff = diff.abs() as u16;
-        let category = abs_diff
-            .view_bits::<Msb0>()
-            .first_one()
-            .map_or(0, |v| (bits_of::<u16>() - 1 - v) + 1) as u8;
-
-        let prefix = self.huffman_table.0.get(&category).unwrap();
-        ret.append(&mut prefix.to_owned());
-        if category != 0 {
-            let abs_remaining = (abs_diff - (1 << (category as u16 - 1))) as usize;
-            let mut abs_bits = abs_remaining.view_bits::<Lsb0>()[..category as usize].to_owned();
-            abs_bits.reverse(); // LSB0 to MSB0.
-            let mut bits = if diff > 0 {
-                abs_bits
-            } else {
-                abs_bits.iter().map(|v| !v).collect()
-            };
-            ret.append(&mut bits);
-        }
-
+        let ret = entropy_encode_category(&self.huffman_table, diff, None);
         self.pred = value;
-
         ret
     }
 }
