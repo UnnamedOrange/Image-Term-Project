@@ -732,4 +732,44 @@ mod test {
             )
         );
     }
+
+    #[test]
+    fn test_ac_encoder() {
+        let table = DEFAULT_LUMINANCE_AC_HUFFMAN_TABLE.to_cached();
+        // 课件上的例子。注意表不一样。
+        let ac = [
+            5, -2, 0, 2, 0, 0, 0, //
+            1, 0, 0, 0, 0, 0, 0, 0, //
+            0, 0, 0, 0, 0, 0, 0, 0, //
+            0, 0, 0, 0, 0, 0, 0, -1, //
+            0, 0, 0, 0, 0, 0, 0, 0, //
+            0, 0, 0, 0, 0, 0, 0, 0, //
+            0, 0, 0, 0, 0, 0, 0, 0, //
+            0, 0, 0, 0, 0, 0, 0, 0, //
+        ];
+
+        let mut encoder = AcEncoder::new(&table);
+        let mut result = bitvec![];
+        for v in ac {
+            result.append(&mut encoder.next(v));
+        }
+        result.append(&mut encoder.flush(true));
+
+        let truth = bits![
+            1, 0, 0, // 0/3
+            1, 0, 1, //
+            0, 1, // 0/2
+            0, 1, //
+            1, 1, 0, 1, 1, // 1/2, 表不一样
+            1, 0, //
+            1, 1, 1, 0, 1, 0, // 3/1
+            1, //
+            1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, // // F/0 (ZRL), 表不一样
+            1, 1, 1, 1, 0, 1, 1, // 6/1
+            0, //
+            1, 0, 1, 0, // 0/0 (EOB)
+        ];
+
+        assert_eq!(result, truth);
+    }
 }
