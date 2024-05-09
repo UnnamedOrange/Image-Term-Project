@@ -559,13 +559,35 @@ impl<'a> JpegScanEncode for DcEncoder<'a> {
 
 impl<'a> JpegScanEncode for AcEncoder<'a> {
     fn next(&mut self, value: i16) -> BitVec {
-        todo!()
+        if value == 0 {
+            self.zero_run_length += 1;
+        }
+        let zrl = self.zero_run_length as u8;
+        if value == 0 {
+            if self.zero_run_length == 16 {
+                self.flush()
+            } else {
+                bitvec![]
+            }
+        } else {
+            self.zero_run_length = 0;
+            entropy_encode_category(&self.huffman_table, value, Some(zrl))
+        }
     }
 }
 
 impl<'a> AcEncoder<'a> {
+    /// 将当前的零游程单独编码。用于结尾 0 的情况。
+    /// 为了简便，这里的 AC 编码流程不考虑 EOB（结尾全为 0）。
     fn flush(&mut self) -> BitVec {
-        todo!()
+        assert!(self.zero_run_length <= 16);
+        let zrl = self.zero_run_length as u8;
+        if zrl == 0 {
+            bitvec![]
+        } else {
+            self.zero_run_length = 0;
+            entropy_encode_category(&self.huffman_table, 0, Some(zrl - 1))
+        }
     }
 }
 
