@@ -4,6 +4,7 @@ pub mod encode_step3;
 pub mod encode_step4;
 pub mod encode_step5;
 pub mod encode_step6;
+pub mod encode_step7;
 
 use std::io;
 
@@ -20,6 +21,7 @@ use encode_step4::show_step4;
 use encode_step5::encode_step5;
 use encode_step5::show_step5;
 use encode_step6::encode_step6;
+use encode_step7::encode_step7;
 
 pub fn encode(image: &RgbImage) -> io::Result<()> {
     let yuv_image = encode_step1(image)?;
@@ -38,6 +40,8 @@ pub fn encode(image: &RgbImage) -> io::Result<()> {
     show_step5(&zigzag_mcu_collection);
 
     let jpeg_output_data = encode_step6(&zigzag_mcu_collection)?;
+
+    encode_step7(&jpeg_output_data)?;
 
     todo!()
 }
