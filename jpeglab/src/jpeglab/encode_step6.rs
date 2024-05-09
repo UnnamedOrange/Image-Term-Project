@@ -561,32 +561,39 @@ impl<'a> JpegScanEncode for AcEncoder<'a> {
     fn next(&mut self, value: i16) -> BitVec {
         if value == 0 {
             self.zero_run_length += 1;
-        }
-        let zrl = self.zero_run_length as u8;
-        if value == 0 {
-            if self.zero_run_length == 16 {
-                self.flush()
-            } else {
-                bitvec![]
-            }
+            bitvec![]
         } else {
+            let mut ret = self.flush(false);
+            ret.append(&mut entropy_encode_category(
+                &self.huffman_table,
+                value,
+                Some(self.zero_run_length as u8),
+            ));
             self.zero_run_length = 0;
-            entropy_encode_category(&self.huffman_table, value, Some(zrl))
+            ret
         }
     }
 }
 
 impl<'a> AcEncoder<'a> {
-    /// 将当前的零游程单独编码。用于结尾 0 的情况。
-    /// 为了简便，这里的 AC 编码流程不考虑 EOB（结尾全为 0）。
-    fn flush(&mut self) -> BitVec {
-        assert!(self.zero_run_length <= 16);
-        let zrl = self.zero_run_length as u8;
-        if zrl == 0 {
-            bitvec![]
+    /// 将当前的零游程单独编码。
+    /// 如果 `is_end_of_block` 为 `true`，则根据是否有零游程输出 EOB。
+    /// 如果 `is_end_of_block` 为 `false`，则编码超过 16 个的 0，直到零游程小于 16。
+    fn flush(&mut self, is_end_of_block: bool) -> BitVec {
+        if is_end_of_block == true {
+            if self.zero_run_length != 0 {
+                entropy_encode_category(&self.huffman_table, 0, None) // EOB: 0/0
+            } else {
+                bitvec![]
+            }
         } else {
-            self.zero_run_length = 0;
-            entropy_encode_category(&self.huffman_table, 0, Some(zrl - 1))
+            let mut ret = bitvec![];
+            while self.zero_run_length >= 16 {
+                let mut f0 = entropy_encode_category(&self.huffman_table, 0, Some(15));
+                ret.append(&mut f0);
+                self.zero_run_length -= 16;
+            }
+            ret
         }
     }
 }
@@ -620,7 +627,7 @@ pub fn encode_step6(zigzag_mcu_collection: &ZigzagMcuCollection) -> io::Result<J
         for i in 1..du.0.len() {
             ret.append(&mut ac_encoder.next(du.0[i]));
         }
-        ret.append(&mut ac_encoder.flush());
+        ret.append(&mut ac_encoder.flush(true));
 
         ret
     }
