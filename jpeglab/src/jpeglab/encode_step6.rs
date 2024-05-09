@@ -512,8 +512,8 @@ fn entropy_encode_category(
     let prefix = huffman_table.0.get(&symbol).unwrap();
     ret.append(&mut prefix.to_owned());
     if category != 0 {
-        let abs_remaining = (abs_value - (1 << (category as u16 - 1))) as usize;
-        let mut abs_bits = abs_remaining.view_bits::<Lsb0>()[..category as usize].to_owned();
+        // 不需要减去最高位。此时，最高位为 1 表示整数，最高位为 0 表示负数。
+        let mut abs_bits = abs_value.view_bits::<Lsb0>()[..category as usize].to_owned();
         abs_bits.reverse(); // LSB0 to MSB0.
         let mut bits = if value > 0 {
             abs_bits
@@ -698,30 +698,30 @@ mod test {
         let table = DEFAULT_LUMINANCE_DC_HUFFMAN_TABLE.to_cached();
         let mut encoder = DcEncoder::new(&table);
 
-        let result = encoder.next(14); // Category 4, remainder 6.
+        let result = encoder.next(14); // Category 4.
         assert_eq!(
             result,
             bits!(
                 1, 0, 1, //
-                0, 1, 1, 0,
+                1, 1, 1, 0,
             )
         );
 
-        let result = encoder.next(114); // 100, Category 7, remainder 36.
+        let result = encoder.next(114); // 100, Category 7.
         assert_eq!(
             result,
             bits!(
                 1, 1, 1, 1, 0, //
-                0, 1, 0, 0, 1, 0, 0,
+                1, 1, 0, 0, 1, 0, 0,
             )
         );
 
-        let result = encoder.next(-514); // -628, Category A, remainder 116, 1's complement.
+        let result = encoder.next(-514); // -628, Category A, 1's complement.
         assert_eq!(
             result,
             bits!(
                 1, 1, 1, 1, 1, 1, 1, 0, //
-                1, 1, 1, 0, 0, 0, 1, 0, 1, 1,
+                0, 1, 1, 0, 0, 0, 1, 0, 1, 1,
             )
         );
     }
