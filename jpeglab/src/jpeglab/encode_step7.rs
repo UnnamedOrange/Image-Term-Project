@@ -1,6 +1,9 @@
 use std::io;
 use std::path::Path;
 
+use bytebuffer::ByteBuffer;
+use bytebuffer::Endian;
+
 use super::encode_step6::JpegOutputData;
 
 /// 图像开始。
@@ -222,10 +225,65 @@ impl ImageData {
 #[derive(Debug)]
 pub struct EOI;
 
+pub trait ToVec {
+    fn to_vec(&self) -> Vec<u8>;
+}
+
+impl ToVec for SOI {
+    fn to_vec(&self) -> Vec<u8> {
+        return vec![0xFF, 0xD8];
+    }
+}
+
+impl ToVec for APP0 {
+    fn to_vec(&self) -> Vec<u8> {
+        let mut ret = ByteBuffer::new();
+        ret.set_endian(Endian::BigEndian);
+        ret.write_bytes(&[0xFF, 0xE0]);
+
+        ret.write_u16(self.length);
+        ret.write_bytes(&self.identifier);
+        ret.write_u8(self.major_version);
+        ret.write_u8(self.minor_version);
+        ret.write_u8(self.units);
+        ret.write_u16(self.x_density);
+        ret.write_u16(self.y_density);
+        ret.write_u8(self.x_thumbnail);
+        ret.write_u8(self.y_thumbnail);
+
+        ret.into_vec()
+    }
+}
+
 /// 第七步：输出 JPEG 文件。
 /// 文件名为 out.jpg。
 pub fn encode_step7(data: &JpegOutputData) -> io::Result<()> {
     let out_path = Path::new("out.jpg");
 
     todo!()
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_app0() {
+        let app0 = APP0::default().to_vec();
+        assert_eq!(
+            app0,
+            [
+                0xFF, 0xE0, //
+                0x00, 0x10, //
+                0x4A, 0x46, 0x49, 0x46, 0x00, //
+                0x01, //
+                0x01, //
+                0x00, //
+                0x00, 0x01, //
+                0x00, 0x01, //
+                0x00, //
+                0x00, //
+            ]
+        );
+    }
 }
