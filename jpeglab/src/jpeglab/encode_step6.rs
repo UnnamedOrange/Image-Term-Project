@@ -11,7 +11,7 @@ use super::encode_step5::ZigzagMcuCollection;
 /// 按 JPEG 标准定义霍夫曼码表结构体，由长度表和符号表组成，描述了一棵霍夫曼树。
 /// 编码 DC 的数字时，会根据数字的大小分为至多 16 个符号，这些符号用这里定义的霍夫曼码表编码。见课件表 8.17, 8.18。
 /// 编码 AC 的数字时，会根据数字的大小或者行程编码 0 的数量分为很多符号。见课件表 8.17, 8.19。
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct JpegHuffmanTable {
     /// 长度为 (n + 1) 的霍夫曼码字有 `codes[n]` 个。
     /// 共有 `self.codes.iter().map(|&x| x as usize).sum::<usize>()` 个霍夫曼码字。

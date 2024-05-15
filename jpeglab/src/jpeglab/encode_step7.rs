@@ -7,7 +7,12 @@ use bytebuffer::Endian;
 use super::encode_step4::QuantizationTable;
 use super::encode_step4::CHROMINANCE_QUANTIZATION_TABLE;
 use super::encode_step4::LUMINANCE_QUANTIZATION_TABLE;
+use super::encode_step6::JpegHuffmanTable;
 use super::encode_step6::JpegOutputData;
+use super::encode_step6::DEFAULT_CHROMA_AC_HUFFMAN_TABLE;
+use super::encode_step6::DEFAULT_CHROMA_DC_HUFFMAN_TABLE;
+use super::encode_step6::DEFAULT_LUMINANCE_AC_HUFFMAN_TABLE;
+use super::encode_step6::DEFAULT_LUMINANCE_DC_HUFFMAN_TABLE;
 
 /// 图像开始。
 /// FF D8
@@ -367,6 +372,18 @@ impl QuantizationTable {
     }
 }
 
+impl JpegHuffmanTable {
+    fn to_dht(&self, id: u8, table_class: u8) -> DHT {
+        DHT {
+            length: 2 + 1 + 16 + self.values.len() as u16,
+            table_class,
+            id,
+            codes: self.codes,
+            values: self.values.clone(),
+        }
+    }
+}
+
 /// 第七步：输出 JPEG 文件。
 /// 文件名为 out.jpg。
 pub fn encode_step7(data: &JpegOutputData) -> io::Result<()> {
@@ -393,6 +410,15 @@ pub fn encode_step7(data: &JpegOutputData) -> io::Result<()> {
     sof0.samples_per_line = data.original_width as u16;
 
     // DHT
+    let huffman_tables = [
+        DEFAULT_LUMINANCE_DC_HUFFMAN_TABLE.clone(),
+        DEFAULT_LUMINANCE_AC_HUFFMAN_TABLE.clone(),
+        DEFAULT_CHROMA_DC_HUFFMAN_TABLE.clone(),
+        DEFAULT_CHROMA_AC_HUFFMAN_TABLE.clone(),
+    ];
+    for (i, h) in huffman_tables.iter().enumerate() {
+        dhts.push(h.to_dht(i as u8, if i % 2 == 0 { 0 } else { 1 }));
+    }
 
     // Image Data
 
