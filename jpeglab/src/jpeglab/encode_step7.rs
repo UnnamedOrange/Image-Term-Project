@@ -389,6 +389,8 @@ pub fn encode_step7(data: &JpegOutputData) -> io::Result<()> {
     }
 
     // SOF0
+    sof0.lines = data.original_height as u16;
+    sof0.samples_per_line = data.original_width as u16;
 
     // DHT
 
