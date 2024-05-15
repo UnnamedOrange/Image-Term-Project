@@ -1,6 +1,9 @@
 use std::io;
 use std::path::Path;
 
+use bitvec::field::BitField;
+use bitvec::order::Lsb0;
+use bitvec::view::BitView;
 use bytebuffer::ByteBuffer;
 use bytebuffer::Endian;
 
@@ -220,13 +223,11 @@ impl Default for SOS {
 /// 图像数据。
 /// 没有开始符号，只有结束符号 EOI。
 #[derive(Debug)]
-pub struct ImageData {
-    pub data: Vec<u8>,
-}
+pub struct ImageData(pub Vec<u8>);
 
 impl ImageData {
     fn new() -> Self {
-        Self { data: vec![] }
+        Self(vec![])
     }
 }
 
@@ -346,7 +347,7 @@ impl ToVec for SOS {
 
 impl ToVec for ImageData {
     fn to_vec(&self) -> Vec<u8> {
-        self.data.clone()
+        self.0.clone()
     }
 }
 
@@ -384,6 +385,40 @@ impl JpegHuffmanTable {
     }
 }
 
+impl JpegOutputData {
+    fn to_image_data(&self) -> ImageData {
+        let mut ret = ImageData::new();
+        let scan = &self.scan;
+
+        let mut raw_vec = vec![];
+        raw_vec.resize((scan.len() + 7) / 8, Default::default());
+        let usize_slice = scan.as_raw_slice();
+        let u8_slice;
+        unsafe {
+            let ptr = usize_slice.as_ptr() as *const u8;
+            let length = usize_slice.len() * std::mem::size_of::<usize>();
+            u8_slice = &std::slice::from_raw_parts(ptr, length)[..raw_vec.len()];
+        }
+
+        // To MSB.
+        for i in 0..raw_vec.len() {
+            let mut bits = u8_slice[i].view_bits::<Lsb0>().to_owned();
+            bits.reverse();
+            raw_vec[i] = bits.load();
+        }
+
+        // 防止出现 0xFF 0xxx 被当作标记，一旦出现 0xFF 就在后面补充 0x00。
+        for v in raw_vec {
+            ret.0.push(v);
+            if v == 0xFF {
+                ret.0.push(0);
+            }
+        }
+
+        ret
+    }
+}
+
 /// 第七步：输出 JPEG 文件。
 /// 文件名为 out.jpg。
 pub fn encode_step7(data: &JpegOutputData) -> io::Result<()> {
@@ -395,7 +430,7 @@ pub fn encode_step7(data: &JpegOutputData) -> io::Result<()> {
     let mut sof0 = SOF0::default();
     let mut dhts = Vec::<DHT>::new();
     let sos = SOS::default();
-    let mut image_data = ImageData::new();
+    let image_data;
     let eoi = EOI;
 
     // DQT
@@ -421,6 +456,7 @@ pub fn encode_step7(data: &JpegOutputData) -> io::Result<()> {
     }
 
     // Image Data
+    image_data = data.to_image_data();
 
     let mut output = ByteBuffer::new();
     output.write_bytes(&soi.to_vec());
