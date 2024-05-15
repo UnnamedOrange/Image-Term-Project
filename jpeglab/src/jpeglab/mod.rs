@@ -50,3 +50,7 @@ pub fn encode(image: &RgbImage) -> io::Result<()> {
     // 第七步：输出 JPEG 文件。
     encode_step7(&jpeg_output_data)
 }
+
+pub fn decode(buf: &[u8]) -> io::Result<()> {
+    todo!()
+}

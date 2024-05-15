@@ -1,6 +1,8 @@
 mod jpeglab;
 
+use std::fs::File;
 use std::io;
+use std::io::Read;
 use std::path::Path;
 
 use clap::Parser;
@@ -38,7 +40,11 @@ fn handle_others(path: &Path) -> io::Result<()> {
 }
 
 fn handle_jpg(path: &Path) -> io::Result<()> {
-    todo!()
+    let mut file = File::open(path)?;
+    let mut buffer = Vec::new();
+    file.read_to_end(&mut buffer)?;
+
+    jpeglab::decode(&buffer)
 }
 
 fn main() -> io::Result<()> {
