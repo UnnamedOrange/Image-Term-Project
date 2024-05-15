@@ -41,7 +41,5 @@ pub fn encode(image: &RgbImage) -> io::Result<()> {
 
     let jpeg_output_data = encode_step6(&zigzag_mcu_collection)?;
 
-    encode_step7(&jpeg_output_data)?;
-
-    todo!()
+    encode_step7(&jpeg_output_data)
 }

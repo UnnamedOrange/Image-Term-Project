@@ -353,7 +353,38 @@ impl ToVec for EOI {
 pub fn encode_step7(data: &JpegOutputData) -> io::Result<()> {
     let out_path = Path::new("out.jpg");
 
-    todo!()
+    let soi = SOI;
+    let app0 = APP0::default();
+    let mut dqts = Vec::<DQT>::new();
+    let mut sof0 = SOF0::default();
+    let mut dhts = Vec::<DHT>::new();
+    let sos = SOS::default();
+    let mut image_data = ImageData::new();
+    let eoi = EOI;
+
+    // DQT
+
+    // SOF0
+
+    // DHT
+
+    // Image Data
+
+    let mut output = ByteBuffer::new();
+    output.write_bytes(&soi.to_vec());
+    output.write_bytes(&app0.to_vec());
+    for dqt in &dqts {
+        output.write_bytes(&dqt.to_vec());
+    }
+    output.write_bytes(&sof0.to_vec());
+    for dht in &dhts {
+        output.write_bytes(&dht.to_vec());
+    }
+    output.write_bytes(&sos.to_vec());
+    output.write_bytes(&image_data.to_vec());
+    output.write_bytes(&eoi.to_vec());
+
+    std::fs::write(out_path, output.into_vec())
 }
 
 #[cfg(test)]
