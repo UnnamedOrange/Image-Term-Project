@@ -76,8 +76,10 @@ pub struct SOF0Component {
     /// 分量的 ID，通常取 1, 2, 3。
     pub id: u8,
     /// 水平采样因子，在原始结构中占 1 个字节的高 4 位。
+    /// 是相对的，值越大采样越多。
     pub horizontal_sampling_factor: u8,
     /// 垂直采样因子，在原始结构中占 1 个字节的低 4 位。
+    /// 是相对的，值越大采样越多。
     pub vertical_sampling_factor: u8,
     /// 采用的量化表的编号。
     pub quantization_id: u8,
@@ -255,6 +257,97 @@ impl ToVec for APP0 {
     }
 }
 
+impl ToVec for DQT {
+    fn to_vec(&self) -> Vec<u8> {
+        let mut ret = ByteBuffer::new();
+        ret.set_endian(Endian::BigEndian);
+        ret.write_bytes(&[0xFF, 0xDB]);
+
+        ret.write_u16(self.length);
+        let precision = if self.is_precision_16 { 1 } else { 0 };
+        ret.write_u8(precision << 4 | self.id);
+        for &value in self.table.iter() {
+            ret.write_u16(value);
+        }
+
+        ret.into_vec()
+    }
+}
+
+impl ToVec for SOF0 {
+    fn to_vec(&self) -> Vec<u8> {
+        let mut ret = ByteBuffer::new();
+        ret.set_endian(Endian::BigEndian);
+        ret.write_bytes(&[0xFF, 0xC0]);
+
+        ret.write_u16(self.length);
+        ret.write_u8(self.precision);
+        ret.write_u16(self.lines);
+        ret.write_u16(self.samples_per_line);
+        ret.write_u8(self.components.len() as u8);
+        for component in &self.components {
+            ret.write_u8(component.id);
+            ret.write_u8(
+                component.horizontal_sampling_factor << 4 | component.vertical_sampling_factor,
+            );
+            ret.write_u8(component.quantization_id);
+        }
+
+        ret.into_vec()
+    }
+}
+
+impl ToVec for DHT {
+    fn to_vec(&self) -> Vec<u8> {
+        let mut ret = ByteBuffer::new();
+        ret.set_endian(Endian::BigEndian);
+        ret.write_bytes(&[0xFF, 0xC4]);
+
+        ret.write_u16(self.length);
+        ret.write_u8(self.table_class << 4 | self.id);
+        for &code in self.codes.iter() {
+            ret.write_u8(code);
+        }
+        for &value in self.values.iter() {
+            ret.write_u8(value);
+        }
+
+        ret.into_vec()
+    }
+}
+
+impl ToVec for SOS {
+    fn to_vec(&self) -> Vec<u8> {
+        let mut ret = ByteBuffer::new();
+        ret.set_endian(Endian::BigEndian);
+        ret.write_bytes(&[0xFF, 0xDA]);
+
+        ret.write_u16(self.length);
+        ret.write_u8(self.components.len() as u8);
+        for component in &self.components {
+            ret.write_u8(component.id);
+            ret.write_u8(component.dc_huffman_id << 4 | component.ac_huffman_id);
+        }
+        ret.write_u8(self.ss);
+        ret.write_u8(self.se);
+        ret.write_u8(self.ah << 4 | self.al);
+
+        ret.into_vec()
+    }
+}
+
+impl ToVec for ImageData {
+    fn to_vec(&self) -> Vec<u8> {
+        self.data.clone()
+    }
+}
+
+impl ToVec for EOI {
+    fn to_vec(&self) -> Vec<u8> {
+        return vec![0xFF, 0xD9];
+    }
+}
+
 /// 第七步：输出 JPEG 文件。
 /// 文件名为 out.jpg。
 pub fn encode_step7(data: &JpegOutputData) -> io::Result<()> {
@@ -282,6 +375,44 @@ mod test {
                 0x00, 0x01, //
                 0x00, 0x01, //
                 0x00, //
+                0x00, //
+            ]
+        );
+    }
+
+    #[test]
+    fn test_sof0() {
+        let sof0 = SOF0::default().to_vec();
+        assert_eq!(
+            sof0,
+            [
+                0xFF, 0xC0, //
+                0x00, 0x11, //
+                0x08, //
+                0x00, 0x00, //
+                0x00, 0x00, //
+                0x03, //
+                0x01, 0x21, 0x00, //
+                0x02, 0x11, 0x01, //
+                0x03, 0x11, 0x01, //
+            ]
+        );
+    }
+
+    #[test]
+    fn test_sos() {
+        let sos = SOS::default().to_vec();
+        assert_eq!(
+            sos,
+            [
+                0xFF, 0xDA, //
+                0x00, 0x0C, //
+                0x03, //
+                0x01, 0x01, //
+                0x02, 0x23, //
+                0x03, 0x23, //
+                0x00, //
+                0x3F, //
                 0x00, //
             ]
         );
