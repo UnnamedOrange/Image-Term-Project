@@ -4,6 +4,9 @@ use std::path::Path;
 use bytebuffer::ByteBuffer;
 use bytebuffer::Endian;
 
+use super::encode_step4::QuantizationTable;
+use super::encode_step4::CHROMINANCE_QUANTIZATION_TABLE;
+use super::encode_step4::LUMINANCE_QUANTIZATION_TABLE;
 use super::encode_step6::JpegOutputData;
 
 /// 图像开始。
@@ -348,6 +351,22 @@ impl ToVec for EOI {
     }
 }
 
+impl QuantizationTable {
+    fn to_dqt(&self, id: u8) -> DQT {
+        // 默认 16 位精度。
+        let mut table = DQT::default();
+        table.id = id;
+        let mut idx = 0;
+        for i in 0..8 {
+            for j in 0..8 {
+                table.table[idx] = self.0[i][j];
+                idx += 1;
+            }
+        }
+        table
+    }
+}
+
 /// 第七步：输出 JPEG 文件。
 /// 文件名为 out.jpg。
 pub fn encode_step7(data: &JpegOutputData) -> io::Result<()> {
@@ -363,6 +382,11 @@ pub fn encode_step7(data: &JpegOutputData) -> io::Result<()> {
     let eoi = EOI;
 
     // DQT
+    const QUANTIZATION_TABLES: [QuantizationTable; 2] =
+        [LUMINANCE_QUANTIZATION_TABLE, CHROMINANCE_QUANTIZATION_TABLE];
+    for (i, q) in QUANTIZATION_TABLES.iter().enumerate() {
+        dqts.push(q.to_dqt(i as u8));
+    }
 
     // SOF0
 
