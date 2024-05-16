@@ -70,9 +70,30 @@ fn parse_app0(block: &[u8]) -> io::Result<APP0> {
     Ok(ret)
 }
 
+fn parse_dqt(block: &[u8]) -> io::Result<QuantizationTable> {
+    let mut buf = ByteBuffer::from_bytes(block);
+    let mut ret = QuantizationTable(Default::default());
+    let precision_and_id = buf.read_u8()?;
+    let _id = precision_and_id & 0x0F; // 忽略 ID，假设按顺序。
+    let precision = precision_and_id >> 4;
+
+    for i in 0..8 {
+        for j in 0..8 {
+            ret.0[i][j] = if precision == 0 {
+                buf.read_u8()? as u16
+            } else {
+                buf.read_u16()? as u16
+            };
+        }
+    }
+
+    Ok(ret)
+}
+
 /// 第一步：从原始的 JPEG 数据中解析出解码所需的完整数据。
 pub fn decode_step1(buf: &[u8]) -> io::Result<CompleteJpegData> {
     let mut ret = CompleteJpegData::default();
+    let mut quantization_tables = vec![];
 
     let mut buf = ByteBuffer::from_bytes(buf);
     buf.set_endian(Endian::BigEndian);
@@ -116,6 +137,20 @@ pub fn decode_step1(buf: &[u8]) -> io::Result<CompleteJpegData> {
                 }
                 let length = length as usize - 2;
                 let _block = buf.read_bytes(length)?; // 不处理。
+            }
+            // DQT
+            0xDB => {
+                let length = buf.read_u16()?;
+                if length < 2 {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "Invalid block length",
+                    ));
+                }
+                let length = length as usize - 2;
+                let block = buf.read_bytes(length)?;
+                let dqt = parse_dqt(&block)?;
+                quantization_tables.push(dqt);
             }
             _ => {
                 return Err(io::Error::new(
