@@ -167,7 +167,7 @@ pub fn decode_step1(buf: &[u8]) -> io::Result<CompleteJpegData> {
     let mut buf = ByteBuffer::from_bytes(buf);
     buf.set_endian(Endian::BigEndian);
     while buf.get_rpos() < buf.len() {
-        let heading = buf.read_u8().and_then(|v| {
+        buf.read_u8().and_then(|v| {
             if v != 0xFF {
                 Err(io::Error::new(
                     io::ErrorKind::InvalidData,
