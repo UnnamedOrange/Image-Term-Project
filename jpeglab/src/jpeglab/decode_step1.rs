@@ -164,54 +164,22 @@ pub fn decode_step1(buf: &[u8]) -> io::Result<CompleteJpegData> {
             0xD8 => {}
             // APP0
             0xE0 => {
-                let length = buf.read_u16()?;
-                if length < 2 {
-                    return Err(io::Error::new(
-                        io::ErrorKind::InvalidData,
-                        "Invalid block length",
-                    ));
-                }
-                let length = length as usize - 2;
-                let block = buf.read_bytes(length)?;
+                let block = read_block(&mut buf)?;
                 let _app0 = parse_app0(&block)?; // 不使用。
             }
             // APPn
             0xE1..=0xEF => {
-                let length = buf.read_u16()?;
-                if length < 2 {
-                    return Err(io::Error::new(
-                        io::ErrorKind::InvalidData,
-                        "Invalid block length",
-                    ));
-                }
-                let length = length as usize - 2;
-                let _block = buf.read_bytes(length)?; // 不处理。
+                let _block = read_block(&mut buf)?;
             }
             // DQT
             0xDB => {
-                let length = buf.read_u16()?;
-                if length < 2 {
-                    return Err(io::Error::new(
-                        io::ErrorKind::InvalidData,
-                        "Invalid block length",
-                    ));
-                }
-                let length = length as usize - 2;
-                let block = buf.read_bytes(length)?;
+                let block = read_block(&mut buf)?;
                 let dqt = parse_dqt(&block)?;
                 quantization_tables.push(dqt);
             }
             // SOF0（不支持 SOF2）
             0xC0 => {
-                let legnth = buf.read_u16()?;
-                if legnth < 2 {
-                    return Err(io::Error::new(
-                        io::ErrorKind::InvalidData,
-                        "Invalid block length",
-                    ));
-                }
-                let length = legnth as usize - 2;
-                let block = buf.read_bytes(length)?;
+                let block = read_block(&mut buf)?;
                 temp_components = parse_sof0(&block, &mut ret)?;
             }
             _ => {
@@ -224,4 +192,17 @@ pub fn decode_step1(buf: &[u8]) -> io::Result<CompleteJpegData> {
     }
 
     todo!()
+}
+
+fn read_block(buf: &mut ByteBuffer) -> Result<Vec<u8>, io::Error> {
+    let length = buf.read_u16()?;
+    if length < 2 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "Invalid block length",
+        ));
+    }
+    let length = length as usize - 2;
+    let block = buf.read_bytes(length)?;
+    Ok(block)
 }
