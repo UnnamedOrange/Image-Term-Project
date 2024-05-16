@@ -1,9 +1,13 @@
+use std::convert::TryInto;
 use std::io;
 
 use bitvec::vec::BitVec;
+use bytebuffer::ByteBuffer;
+use bytebuffer::Endian;
 
 use super::encode_step4::QuantizationTable;
 use super::encode_step6::CachedHuffmanTable;
+use super::encode_step7::APP0;
 
 /// 分量信息。来源于 SOF0 和 SOS。
 #[derive(Debug)]
@@ -37,7 +41,90 @@ pub struct CompleteJpegData<'a> {
     pub scan: BitVec,
 }
 
+impl<'a> Default for CompleteJpegData<'a> {
+    fn default() -> Self {
+        Self {
+            width: Default::default(),
+            height: Default::default(),
+            quatization_tables: Default::default(),
+            huffman_tables: Default::default(),
+            components: Default::default(),
+            scan: Default::default(),
+        }
+    }
+}
+
+fn parse_app0(block: &[u8]) -> io::Result<APP0> {
+    let mut buf = ByteBuffer::from_bytes(block);
+    let mut ret = APP0::default();
+    ret.length = block.len() as u16 + 2;
+    ret.identifier = buf.read_bytes(5)?.try_into().unwrap();
+    ret.major_version = buf.read_u8()?;
+    ret.minor_version = buf.read_u8()?;
+    ret.units = buf.read_u8()?;
+    ret.x_density = buf.read_u16()?;
+    ret.y_density = buf.read_u16()?;
+    ret.x_thumbnail = buf.read_u8()?;
+    ret.y_thumbnail = buf.read_u8()?;
+
+    Ok(ret)
+}
+
 /// 第一步：从原始的 JPEG 数据中解析出解码所需的完整数据。
 pub fn decode_step1(buf: &[u8]) -> io::Result<CompleteJpegData> {
+    let mut ret = CompleteJpegData::default();
+
+    let mut buf = ByteBuffer::from_bytes(buf);
+    buf.set_endian(Endian::BigEndian);
+    while buf.get_rpos() < buf.len() {
+        let heading = buf.read_u8().and_then(|v| {
+            if v != 0xFF {
+                Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "Invalid block heading",
+                ))
+            } else {
+                Ok(v)
+            }
+        })?;
+        let block_type = buf.read_u8()?;
+
+        match block_type {
+            // SOI
+            0xD8 => {}
+            // APP0
+            0xE0 => {
+                let length = buf.read_u16()?;
+                if length < 2 {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "Invalid block length",
+                    ));
+                }
+                let length = length as usize - 2;
+                let block = buf.read_bytes(length)?;
+                let _app0 = parse_app0(&block)?; // 不使用。
+            }
+            // APPn
+            0xE1..=0xEF => {
+                let length = buf.read_u16()?;
+                if length < 2 {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "Invalid block length",
+                    ));
+                }
+                let length = length as usize - 2;
+                let _block = buf.read_bytes(length)?; // 不处理。
+            }
+            _ => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "Invalid block type",
+                ));
+            }
+        }
+    }
+
     todo!()
 }
