@@ -210,7 +210,7 @@ pub fn decode_step1(buf: &[u8]) -> io::Result<CompleteJpegData> {
             _ => {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidData,
-                    "Invalid block type",
+                    format!("Invalid block type 0x{:02X}", block_type),
                 ));
             }
         }
