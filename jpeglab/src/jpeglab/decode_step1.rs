@@ -24,6 +24,16 @@ pub struct Component<'a> {
     pub ac_huffman_table: &'a CachedHuffmanTable,
 }
 
+/// 临时分量信息。
+#[derive(Debug)]
+struct TempComponent {
+    pub horizontal_sampling_factor: u8,
+    pub vertical_sampling_factor: u8,
+    pub quatization_table_id: u8,
+    pub dc_huffman_table_id: u8,
+    pub ac_huffman_table_id: u8,
+}
+
 /// 解码 JPEG 图像所需的完整数据，使用方便编程的格式。
 #[derive(Debug)]
 pub struct CompleteJpegData<'a> {
@@ -90,9 +100,48 @@ fn parse_dqt(block: &[u8]) -> io::Result<QuantizationTable> {
     Ok(ret)
 }
 
+fn parse_sof0(block: &[u8], jpeg_data: &mut CompleteJpegData) -> io::Result<Vec<TempComponent>> {
+    let mut buf = ByteBuffer::from_bytes(block);
+    let mut ret = vec![];
+
+    let precision = buf.read_u8()?; // 忽略精度，假设总是 8。
+    if precision != 8 {
+        return Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "Unsupported precision",
+        ));
+    }
+    jpeg_data.height = buf.read_u16()? as usize;
+    jpeg_data.width = buf.read_u16()? as usize;
+    let n_components = buf.read_u8()?;
+    if n_components != 3 {
+        return Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "Unsupported number of components",
+        ));
+    }
+    for _ in 0..n_components {
+        let _id = buf.read_u8()?; // 忽略 ID，假设按顺序。
+        let sampling_factors = buf.read_u8()?;
+        let horizontal_sampling_factor = sampling_factors >> 4;
+        let vertical_sampling_factor = sampling_factors & 0x0F;
+        let quatization_table_id = buf.read_u8()?;
+        ret.push(TempComponent {
+            horizontal_sampling_factor,
+            vertical_sampling_factor,
+            quatization_table_id,
+            dc_huffman_table_id: Default::default(),
+            ac_huffman_table_id: Default::default(),
+        });
+    }
+
+    Ok(ret)
+}
+
 /// 第一步：从原始的 JPEG 数据中解析出解码所需的完整数据。
 pub fn decode_step1(buf: &[u8]) -> io::Result<CompleteJpegData> {
     let mut ret = CompleteJpegData::default();
+    let mut temp_components = vec![]; // 忽略 ID，假设分量按顺序。
     let mut quantization_tables = vec![];
 
     let mut buf = ByteBuffer::from_bytes(buf);
@@ -151,6 +200,19 @@ pub fn decode_step1(buf: &[u8]) -> io::Result<CompleteJpegData> {
                 let block = buf.read_bytes(length)?;
                 let dqt = parse_dqt(&block)?;
                 quantization_tables.push(dqt);
+            }
+            // SOF0（不支持 SOF2）
+            0xC0 => {
+                let legnth = buf.read_u16()?;
+                if legnth < 2 {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "Invalid block length",
+                    ));
+                }
+                let length = legnth as usize - 2;
+                let block = buf.read_bytes(length)?;
+                temp_components = parse_sof0(&block, &mut ret)?;
             }
             _ => {
                 return Err(io::Error::new(
