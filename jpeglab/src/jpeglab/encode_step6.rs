@@ -21,6 +21,15 @@ pub struct JpegHuffmanTable {
     pub values: Vec<u8>,
 }
 
+impl JpegHuffmanTable {
+    pub fn new() -> Self {
+        Self {
+            codes: [0; 16],
+            values: vec![],
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct CachedHuffmanTable(pub HashMap<u8, BitVec>);
 

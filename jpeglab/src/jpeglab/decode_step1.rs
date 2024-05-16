@@ -7,6 +7,7 @@ use bytebuffer::Endian;
 
 use super::encode_step4::QuantizationTable;
 use super::encode_step6::CachedHuffmanTable;
+use super::encode_step6::JpegHuffmanTable;
 use super::encode_step7::APP0;
 
 /// 分量信息。来源于 SOF0 和 SOS。
@@ -138,11 +139,30 @@ fn parse_sof0(block: &[u8], jpeg_data: &mut CompleteJpegData) -> io::Result<Vec<
     Ok(ret)
 }
 
+fn parse_dht(block: &[u8]) -> io::Result<CachedHuffmanTable> {
+    let mut buf = ByteBuffer::from_bytes(block);
+    let mut ret = JpegHuffmanTable::new();
+
+    let _table_class = buf.read_u8()?; // 忽略类别。
+    let _table_id = buf.read_u8()?; // 忽略 ID，假设按顺序。
+
+    for i in 0..ret.codes.len() {
+        ret.codes[i] = buf.read_u8()?;
+    }
+    while buf.get_rpos() < buf.len() {
+        let value = buf.read_u8()?;
+        ret.values.push(value);
+    }
+
+    Ok(ret.to_cached())
+}
+
 /// 第一步：从原始的 JPEG 数据中解析出解码所需的完整数据。
 pub fn decode_step1(buf: &[u8]) -> io::Result<CompleteJpegData> {
     let mut ret = CompleteJpegData::default();
     let mut temp_components = vec![]; // 忽略 ID，假设分量按顺序。
     let mut quantization_tables = vec![];
+    let mut huffman_tables = vec![];
 
     let mut buf = ByteBuffer::from_bytes(buf);
     buf.set_endian(Endian::BigEndian);
@@ -181,6 +201,11 @@ pub fn decode_step1(buf: &[u8]) -> io::Result<CompleteJpegData> {
             0xC0 => {
                 let block = read_block(&mut buf)?;
                 temp_components = parse_sof0(&block, &mut ret)?;
+            }
+            // DHT
+            0xC4 => {
+                let block = read_block(&mut buf)?;
+                huffman_tables.push(parse_dht(&block)?);
             }
             _ => {
                 return Err(io::Error::new(
