@@ -1,7 +1,9 @@
 use std::convert::TryInto;
 use std::io;
 
+use bitvec::order::Lsb0;
 use bitvec::vec::BitVec;
+use bitvec::view::BitView;
 use bytebuffer::ByteBuffer;
 use bytebuffer::Endian;
 
@@ -157,6 +159,52 @@ fn parse_dht(block: &[u8]) -> io::Result<CachedHuffmanTable> {
     Ok(ret.to_cached())
 }
 
+fn parse_sos(block: &[u8], temp_components: &mut Vec<TempComponent>) -> io::Result<()> {
+    let mut buf = ByteBuffer::from_bytes(block);
+
+    let n_components = buf.read_u8()? as usize;
+    for i in 0..n_components {
+        let _id = buf.read_u8()?; // 忽略 ID，假设按顺序。
+        let _huffman_tables = buf.read_u8()?;
+        let dc_huffman_table_id = _huffman_tables >> 4;
+        let ac_huffman_table_id = _huffman_tables & 0x0F;
+        temp_components[i].dc_huffman_table_id = dc_huffman_table_id;
+        temp_components[i].ac_huffman_table_id = ac_huffman_table_id;
+    }
+
+    Ok(())
+}
+
+fn parse_image_data(buf: &mut ByteBuffer) -> io::Result<BitVec> {
+    let mut ret = BitVec::new();
+
+    let mut is_pre_ff = false;
+    while buf.get_rpos() < buf.len() {
+        let byte = buf.read_u8()?;
+
+        if !is_pre_ff && byte != 0xFF || is_pre_ff && byte == 0x00 {
+            let byte = if is_pre_ff { 0xFF } else { byte };
+            let mut bits = byte.view_bits::<Lsb0>().to_owned();
+            bits.reverse();
+            ret.append(&mut bits);
+        } else if !is_pre_ff && byte == 0xFF {
+            // Skip.
+        } else if is_pre_ff && byte == 0xD9 {
+            // EOI.
+            break;
+        } else {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "Invalid image data",
+            ));
+        }
+
+        is_pre_ff = if byte == 0xFF { true } else { false };
+    }
+
+    Ok(ret)
+}
+
 /// 第一步：从原始的 JPEG 数据中解析出解码所需的完整数据。
 pub fn decode_step1(buf: &[u8]) -> io::Result<CompleteJpegData> {
     let mut ret = CompleteJpegData::default();
@@ -206,6 +254,12 @@ pub fn decode_step1(buf: &[u8]) -> io::Result<CompleteJpegData> {
             0xC4 => {
                 let block = read_block(&mut buf)?;
                 huffman_tables.push(parse_dht(&block)?);
+            }
+            // SOS and image data
+            0xDA => {
+                let block = read_block(&mut buf)?;
+                parse_sos(&block, &mut temp_components)?;
+                ret.scan = parse_image_data(&mut buf)?;
             }
             _ => {
                 return Err(io::Error::new(
