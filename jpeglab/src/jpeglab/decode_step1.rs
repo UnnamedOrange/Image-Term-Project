@@ -1,5 +1,6 @@
 use std::convert::TryInto;
 use std::io;
+use std::rc::Rc;
 
 use bitvec::order::Lsb0;
 use bitvec::vec::BitVec;
@@ -14,17 +15,17 @@ use super::encode_step7::APP0;
 
 /// 分量信息。来源于 SOF0 和 SOS。
 #[derive(Debug)]
-pub struct Component<'a> {
+pub struct Component {
     /// 相对水平采样因子。
     pub horizontal_sampling_factor: u8,
     /// 相对垂直采样因子。
     pub vertical_sampling_factor: u8,
     /// 量化表。
-    pub quatization_table: &'a QuantizationTable,
+    pub quatization_table: Rc<QuantizationTable>,
     /// DC 霍夫曼表。
-    pub dc_huffman_table: &'a CachedHuffmanTable,
+    pub dc_huffman_table: Rc<CachedHuffmanTable>,
     /// AC 霍夫曼表。
-    pub ac_huffman_table: &'a CachedHuffmanTable,
+    pub ac_huffman_table: Rc<CachedHuffmanTable>,
 }
 
 /// 临时分量信息。
@@ -39,22 +40,22 @@ struct TempComponent {
 
 /// 解码 JPEG 图像所需的完整数据，使用方便编程的格式。
 #[derive(Debug)]
-pub struct CompleteJpegData<'a> {
+pub struct CompleteJpegData {
     /// 图像宽度，列数。
     pub width: usize,
     /// 图像高度，行数。
     pub height: usize,
     /// 量化表，总是为 16 位精度，ID 为下标。
-    pub quatization_tables: Vec<QuantizationTable>,
+    pub quatization_tables: Vec<Rc<QuantizationTable>>,
     /// 霍夫曼表，ID 为下标。
-    pub huffman_tables: Vec<CachedHuffmanTable>,
+    pub huffman_tables: Vec<Rc<CachedHuffmanTable>>,
     /// 分量信息。
-    pub components: Vec<Component<'a>>,
+    pub components: Vec<Component>,
     /// 图像数据。
     pub scan: BitVec,
 }
 
-impl<'a> Default for CompleteJpegData<'a> {
+impl Default for CompleteJpegData {
     fn default() -> Self {
         Self {
             width: Default::default(),
@@ -243,7 +244,7 @@ pub fn decode_step1(buf: &[u8]) -> io::Result<CompleteJpegData> {
             0xDB => {
                 let block = read_block(&mut buf)?;
                 let dqt = parse_dqt(&block)?;
-                quantization_tables.push(dqt);
+                quantization_tables.push(Rc::new(dqt));
             }
             // SOF0（不支持 SOF2）
             0xC0 => {
@@ -253,7 +254,7 @@ pub fn decode_step1(buf: &[u8]) -> io::Result<CompleteJpegData> {
             // DHT
             0xC4 => {
                 let block = read_block(&mut buf)?;
-                huffman_tables.push(parse_dht(&block)?);
+                huffman_tables.push(Rc::new(parse_dht(&block)?));
             }
             // SOS and image data
             0xDA => {
@@ -270,7 +271,20 @@ pub fn decode_step1(buf: &[u8]) -> io::Result<CompleteJpegData> {
         }
     }
 
-    todo!()
+    ret.quatization_tables = quantization_tables;
+    ret.huffman_tables = huffman_tables;
+    for t in temp_components {
+        let component = Component {
+            horizontal_sampling_factor: t.horizontal_sampling_factor,
+            vertical_sampling_factor: t.vertical_sampling_factor,
+            quatization_table: ret.quatization_tables[t.quatization_table_id as usize].clone(),
+            dc_huffman_table: ret.huffman_tables[t.dc_huffman_table_id as usize].clone(),
+            ac_huffman_table: ret.huffman_tables[t.ac_huffman_table_id as usize].clone(),
+        };
+        ret.components.push(component);
+    }
+
+    Ok(ret)
 }
 
 fn read_block(buf: &mut ByteBuffer) -> Result<Vec<u8>, io::Error> {
