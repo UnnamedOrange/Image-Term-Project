@@ -14,7 +14,7 @@ use super::encode_step6::JpegHuffmanTable;
 use super::encode_step7::APP0;
 
 /// 分量信息。来源于 SOF0 和 SOS。
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Component {
     /// 相对水平采样因子。
     pub horizontal_sampling_factor: u8,

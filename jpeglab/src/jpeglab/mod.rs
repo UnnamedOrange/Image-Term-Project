@@ -1,4 +1,5 @@
 pub mod decode_step1;
+pub mod decode_step2;
 pub mod encode_step1;
 pub mod encode_step2;
 pub mod encode_step3;
@@ -12,6 +13,7 @@ use std::io;
 use image::RgbImage;
 
 use decode_step1::decode_step1;
+use decode_step2::decode_step2;
 use encode_step1::encode_step1;
 use encode_step1::show_step1;
 use encode_step2::encode_step2;
@@ -55,6 +57,8 @@ pub fn encode(image: &RgbImage) -> io::Result<()> {
 
 pub fn decode(buf: &[u8]) -> io::Result<()> {
     let complete_jpeg_data = decode_step1(buf)?;
+
+    let zigzag_mcu_collection = decode_step2(&complete_jpeg_data)?;
 
     todo!()
 }
