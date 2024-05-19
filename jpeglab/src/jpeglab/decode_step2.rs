@@ -137,6 +137,35 @@ impl<'a> AcDecoder<'a> {
     }
 }
 
+impl CompleteJpegData {
+    pub fn get_du_count(&self) -> usize {
+        let max_h = self
+            .components
+            .iter()
+            .map(|c| c.horizontal_sampling_factor as usize)
+            .max()
+            .unwrap();
+        let max_v = self
+            .components
+            .iter()
+            .map(|c| c.vertical_sampling_factor as usize)
+            .max()
+            .unwrap();
+        self.components
+            .iter()
+            .map(|component| {
+                let h = component.horizontal_sampling_factor;
+                let v = component.vertical_sampling_factor;
+                let c_width = (self.width + max_h - 1) / max_h * h as usize;
+                let c_height = (self.height + max_v - 1) / max_v * v as usize;
+                let du_per_width = (c_width + 7) / 8;
+                let du_per_height = (c_height + 7) / 8;
+                du_per_width * du_per_height
+            })
+            .sum()
+    }
+}
+
 /// 第二步：解码熵编码，得到一系列 Zigzag 形式的 DU。
 pub fn decode_step2(jpeg_data: &CompleteJpegData) -> io::Result<DecodeZigzagMcuCollection> {
     let mut zigzag_dus = vec![];
@@ -146,9 +175,11 @@ pub fn decode_step2(jpeg_data: &CompleteJpegData) -> io::Result<DecodeZigzagMcuC
     for component in &jpeg_data.components {
         dc_decoders.push(DcDecoder::new(&component.dc_huffman_table));
     }
+    let du_count = jpeg_data.get_du_count();
 
     let mut offset = 0;
-    while offset < scan.len() {
+    let mut du_idx = 0;
+    while du_idx < du_count && offset < scan.len() {
         // MCU。
         for (i, component) in jpeg_data.components.iter().enumerate() {
             // 一个分量连续存储 H * V 个 DU。
@@ -164,8 +195,16 @@ pub fn decode_step2(jpeg_data: &CompleteJpegData) -> io::Result<DecodeZigzagMcuC
                 ac_decoder.decode(scan, &mut offset, &mut du)?;
 
                 zigzag_dus.push(ZigzagDu(du));
+                du_idx += 1;
             }
         }
+    }
+
+    if du_idx < du_count {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "DUs are not sufficient",
+        ));
     }
 
     Ok(DecodeZigzagMcuCollection {
