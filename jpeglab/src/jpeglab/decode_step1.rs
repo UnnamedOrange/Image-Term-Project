@@ -146,8 +146,7 @@ fn parse_dht(block: &[u8]) -> io::Result<CachedHuffmanTable> {
     let mut buf = ByteBuffer::from_bytes(block);
     let mut ret = JpegHuffmanTable::new();
 
-    let _table_class = buf.read_u8()?; // 忽略类别。
-    let _table_id = buf.read_u8()?; // 忽略 ID，假设按顺序。
+    let _table_class_and_id = buf.read_u8()?; // 忽略 ID，假设按顺序。忽略类别。
 
     for i in 0..ret.codes.len() {
         ret.codes[i] = buf.read_u8()?;
