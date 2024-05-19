@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::convert::TryInto;
 use std::io;
 use std::rc::Rc;
@@ -45,10 +46,6 @@ pub struct CompleteJpegData {
     pub width: usize,
     /// 图像高度，行数。
     pub height: usize,
-    /// 量化表，总是为 16 位精度，ID 为下标。
-    pub quatization_tables: Vec<Rc<QuantizationTable>>,
-    /// 霍夫曼表，ID 为下标。
-    pub huffman_tables: Vec<Rc<CachedHuffmanTable>>,
     /// 分量信息。
     pub components: Vec<Component>,
     /// 图像数据。
@@ -60,8 +57,6 @@ impl Default for CompleteJpegData {
         Self {
             width: Default::default(),
             height: Default::default(),
-            quatization_tables: Default::default(),
-            huffman_tables: Default::default(),
             components: Default::default(),
             scan: Default::default(),
         }
@@ -142,11 +137,14 @@ fn parse_sof0(block: &[u8], jpeg_data: &mut CompleteJpegData) -> io::Result<Vec<
     Ok(ret)
 }
 
-fn parse_dht(block: &[u8]) -> io::Result<CachedHuffmanTable> {
+/// 返回 (霍夫曼表, 类别, ID)。
+fn parse_dht(block: &[u8]) -> io::Result<(CachedHuffmanTable, u8, u8)> {
     let mut buf = ByteBuffer::from_bytes(block);
     let mut ret = JpegHuffmanTable::new();
 
-    let _table_class_and_id = buf.read_u8()?; // 忽略 ID，假设按顺序。忽略类别。
+    let table_class_and_id = buf.read_u8()?;
+    let table_class = table_class_and_id >> 4;
+    let id = table_class_and_id & 0x0F;
 
     for i in 0..ret.codes.len() {
         ret.codes[i] = buf.read_u8()?;
@@ -156,7 +154,7 @@ fn parse_dht(block: &[u8]) -> io::Result<CachedHuffmanTable> {
         ret.values.push(value);
     }
 
-    Ok(ret.to_cached())
+    Ok((ret.to_cached(), table_class, id))
 }
 
 fn parse_sos(block: &[u8], temp_components: &mut Vec<TempComponent>) -> io::Result<()> {
@@ -164,10 +162,10 @@ fn parse_sos(block: &[u8], temp_components: &mut Vec<TempComponent>) -> io::Resu
 
     let n_components = buf.read_u8()? as usize;
     for i in 0..n_components {
-        let _id = buf.read_u8()?; // 忽略 ID，假设按顺序。
-        let _huffman_tables = buf.read_u8()?;
-        let dc_huffman_table_id = _huffman_tables >> 4;
-        let ac_huffman_table_id = _huffman_tables & 0x0F;
+        let _id = buf.read_u8()?;
+        let huffman_tables = buf.read_u8()?;
+        let dc_huffman_table_id = huffman_tables >> 4;
+        let ac_huffman_table_id = huffman_tables & 0x0F;
         temp_components[i].dc_huffman_table_id = dc_huffman_table_id;
         temp_components[i].ac_huffman_table_id = ac_huffman_table_id;
     }
@@ -210,7 +208,7 @@ pub fn decode_step1(buf: &[u8]) -> io::Result<CompleteJpegData> {
     let mut ret = CompleteJpegData::default();
     let mut temp_components = vec![]; // 忽略 ID，假设分量按顺序。
     let mut quantization_tables = vec![];
-    let mut huffman_tables = vec![];
+    let mut huffman_tables = BTreeMap::<(u8, u8), Rc<CachedHuffmanTable>>::new();
 
     let mut buf = ByteBuffer::from_bytes(buf);
     buf.set_endian(Endian::BigEndian);
@@ -253,7 +251,8 @@ pub fn decode_step1(buf: &[u8]) -> io::Result<CompleteJpegData> {
             // DHT
             0xC4 => {
                 let block = read_block(&mut buf)?;
-                huffman_tables.push(Rc::new(parse_dht(&block)?));
+                let (table, table_class, id) = parse_dht(&block)?;
+                huffman_tables.insert((table_class, id), Rc::new(table));
             }
             // SOS and image data
             0xDA => {
@@ -270,15 +269,13 @@ pub fn decode_step1(buf: &[u8]) -> io::Result<CompleteJpegData> {
         }
     }
 
-    ret.quatization_tables = quantization_tables;
-    ret.huffman_tables = huffman_tables;
     for t in temp_components {
         let component = Component {
             horizontal_sampling_factor: t.horizontal_sampling_factor,
             vertical_sampling_factor: t.vertical_sampling_factor,
-            quatization_table: ret.quatization_tables[t.quatization_table_id as usize].clone(),
-            dc_huffman_table: ret.huffman_tables[t.dc_huffman_table_id as usize].clone(),
-            ac_huffman_table: ret.huffman_tables[t.ac_huffman_table_id as usize].clone(),
+            quatization_table: quantization_tables[t.quatization_table_id as usize].clone(),
+            dc_huffman_table: huffman_tables[&(0, t.dc_huffman_table_id)].clone(),
+            ac_huffman_table: huffman_tables[&(1, t.ac_huffman_table_id)].clone(),
         };
         ret.components.push(component);
     }
