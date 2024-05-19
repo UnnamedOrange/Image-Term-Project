@@ -153,6 +153,7 @@ pub struct DHT {
     /// 0 表示 DC，1 表示 AC。
     pub table_class: u8,
     /// 霍夫曼表的编号，在原始结构中占 1 个字节的低 4 位。
+    /// DC 和 AC 的编号是分开的。
     pub id: u8,
     /// 位表。即编码长度为 `i + 1` 的符号数目。
     pub codes: [u8; 16],

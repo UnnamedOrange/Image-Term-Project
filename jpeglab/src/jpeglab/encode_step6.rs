@@ -521,7 +521,7 @@ fn entropy_encode_category(
     let prefix = huffman_table.0.get(&symbol).unwrap();
     ret.append(&mut prefix.to_owned());
     if category != 0 {
-        // 不需要减去最高位。此时，最高位为 1 表示整数，最高位为 0 表示负数。
+        // 不需要减去最高位。此时，最高位为 1 表示正数，最高位为 0 表示负数。
         let mut abs_bits = abs_value.view_bits::<Lsb0>()[..category as usize].to_owned();
         abs_bits.reverse(); // LSB0 to MSB0.
         let mut bits = if value > 0 {
