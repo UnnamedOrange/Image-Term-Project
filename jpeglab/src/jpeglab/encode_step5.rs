@@ -25,7 +25,7 @@ pub struct ZigzagMcuCollection {
 
 impl QuantizedDu {
     pub fn zigzag(&self) -> ZigzagDu {
-        let input = self.0;
+        let input = &self.0;
         let mut ret = [0_i16; 64];
 
         let mut x = 0;
@@ -97,8 +97,6 @@ pub fn show_step5(result: &ZigzagMcuCollection) {
 
 #[cfg(test)]
 mod test {
-    use super::*;
-
     use super::super::encode_step4::QuantizedDu;
 
     #[test]
