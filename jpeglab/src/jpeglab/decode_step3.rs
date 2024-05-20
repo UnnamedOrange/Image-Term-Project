@@ -8,7 +8,7 @@ use super::encode_step4::QuantizationTable;
 use super::encode_step4::QuantizedDu;
 use super::encode_step5::ZigzagDu;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct YuvComponent {
     pub absolute_horizontal_sampling_factor: usize,
     pub absolute_vertical_sampling_factor: usize,
@@ -142,6 +142,98 @@ fn quantized_du_to_dus(
     ret
 }
 
+fn make_decoded_yuv_image(
+    decode_zigzag_mcu_collection: &DecodeZigzagMcuCollection,
+    dus: &Vec<Du>,
+) -> io::Result<DecodedYuvImage> {
+    if decode_zigzag_mcu_collection.components.len() != 3 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "The count of the components is not supported",
+        ));
+    }
+
+    let max_h = decode_zigzag_mcu_collection
+        .components
+        .iter()
+        .map(|c| c.horizontal_sampling_factor as usize)
+        .max()
+        .unwrap();
+    let hb = 8 * max_h;
+    let max_v = decode_zigzag_mcu_collection
+        .components
+        .iter()
+        .map(|c| c.vertical_sampling_factor as usize)
+        .max()
+        .unwrap();
+    let vb = 8 * max_v;
+
+    let padded_width = (decode_zigzag_mcu_collection.width + hb - 1) / hb * hb;
+    let padded_height = (decode_zigzag_mcu_collection.height + vb - 1) / vb * vb;
+
+    let mut yuv_components = vec![];
+    for c in &decode_zigzag_mcu_collection.components {
+        let hs = max_h / c.horizontal_sampling_factor as usize;
+        let vs = max_v / c.vertical_sampling_factor as usize;
+        let cw = padded_width / hs;
+        let ch = padded_height / vs;
+        let mut values = vec![];
+        values.resize(cw * ch, Default::default());
+        yuv_components.push(YuvComponent {
+            absolute_horizontal_sampling_factor: hs,
+            absolute_vertical_sampling_factor: vs,
+            values,
+        })
+    }
+
+    let mut idx = 0;
+    // y start.
+    for ys in (0..padded_height).step_by(vb) {
+        // x start.
+        for xs in (0..padded_width).step_by(hb) {
+            for c in &mut yuv_components {
+                // Horizontal sampling factor (absolute).
+                let hs = c.absolute_horizontal_sampling_factor;
+                // Vertical sampling factor (absolute).
+                let vs = c.absolute_vertical_sampling_factor;
+                // Component width.
+                let cw = padded_width / hs;
+                let values = &mut c.values;
+                for y_du_idx in 0..(max_v / c.absolute_vertical_sampling_factor) {
+                    for x_du_idx in 0..(max_h / c.absolute_horizontal_sampling_factor) {
+                        let du = &dus[idx];
+                        for y_in_du in 0..8 {
+                            for x_in_du in 0..8 {
+                                let y = ys / vs + 8 * y_du_idx + y_in_du;
+                                let x = xs / hs + 8 * x_du_idx + x_in_du;
+                                values[y * cw + x] =
+                                    (du.0[y_in_du][x_in_du] as u8).wrapping_add(128);
+                            }
+                        }
+                        idx += 1;
+                    }
+                }
+            }
+        }
+    }
+
+    if idx != dus.len() {
+        println!("{} {}", idx, dus.len());
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "Not all DUs were consumed",
+        ));
+    }
+
+    Ok(DecodedYuvImage {
+        width: decode_zigzag_mcu_collection.width,
+        height: decode_zigzag_mcu_collection.height,
+        y: yuv_components[0].clone(),
+        u: yuv_components[1].clone(),
+        v: yuv_components[2].clone(),
+    })
+}
+
 /// 第三步：直接解码为填充的 YUV 图像。
 pub fn decode_step3(
     decode_zigzag_mcu_collection: &DecodeZigzagMcuCollection,
@@ -152,8 +244,8 @@ pub fn decode_step3(
         .map(|it| it.to_quantized_du())
         .collect();
     let dus = quantized_du_to_dus(decode_zigzag_mcu_collection, &quantized_dus);
-
-    todo!()
+    let decoded_yuv_image = make_decoded_yuv_image(decode_zigzag_mcu_collection, &dus)?;
+    Ok(decoded_yuv_image)
 }
 
 #[cfg(test)]
