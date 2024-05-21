@@ -199,8 +199,8 @@ fn make_decoded_yuv_image(
                 // Component width.
                 let cw = padded_width / hs;
                 let values = &mut c.values;
-                for y_du_idx in 0..(max_v / c.absolute_vertical_sampling_factor) {
-                    for x_du_idx in 0..(max_h / c.absolute_horizontal_sampling_factor) {
+                for y_du_idx in 0..(max_v / vs) {
+                    for x_du_idx in 0..(max_h / hs) {
                         let du = &dus[idx];
                         for y_in_du in 0..8 {
                             for x_in_du in 0..8 {

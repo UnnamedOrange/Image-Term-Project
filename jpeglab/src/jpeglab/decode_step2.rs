@@ -145,21 +145,23 @@ impl CompleteJpegData {
             .map(|c| c.horizontal_sampling_factor as usize)
             .max()
             .unwrap();
+        let hb = 8 * max_h;
         let max_v = self
             .components
             .iter()
             .map(|c| c.vertical_sampling_factor as usize)
             .max()
             .unwrap();
+        let vb = 8 * max_v;
         self.components
             .iter()
             .map(|component| {
-                let h = component.horizontal_sampling_factor;
-                let v = component.vertical_sampling_factor;
-                let c_width = (self.width + max_h - 1) / max_h * h as usize;
-                let c_height = (self.height + max_v - 1) / max_v * v as usize;
-                let du_per_width = (c_width + 7) / 8;
-                let du_per_height = (c_height + 7) / 8;
+                let h = component.horizontal_sampling_factor as usize;
+                let v = component.vertical_sampling_factor as usize;
+                let c_width = (self.width + hb - 1) / hb * hb as usize;
+                let c_height = (self.height + vb - 1) / vb * vb as usize;
+                let du_per_width = c_width / 8 / (max_h / h);
+                let du_per_height = c_height / 8 / (max_v / v);
                 du_per_width * du_per_height
             })
             .sum()
