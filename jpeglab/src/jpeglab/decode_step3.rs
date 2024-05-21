@@ -117,7 +117,7 @@ impl DctDu {
             }
         }
 
-        Du(ret.map(|inner| inner.map(|it| it.round() as i8)))
+        Du(ret.map(|inner| inner.map(|it| it.round().clamp(-128.0, 127.0) as i8)))
     }
 }
 
