@@ -174,22 +174,22 @@ pub fn show_step1(result: &MyYuvImage) {
     );
 
     y_img
-        .save_with_format("output/y.tiff", ImageFormat::Tiff)
+        .save_with_format("output/y.png", ImageFormat::Png)
         .unwrap_or_else(|_| {
             println!("[ERROR] 保存 Y 图像失败，考虑手动新建一个名为 output 的子文件夹");
         });
     u_img
-        .save_with_format("output/u.tiff", ImageFormat::Tiff)
+        .save_with_format("output/u.png", ImageFormat::Png)
         .unwrap_or_else(|_| {
             println!("[ERROR] 保存 U 图像失败，考虑手动新建一个名为 output 的子文件夹");
         });
     v_img
-        .save_with_format("output/v.tiff", ImageFormat::Tiff)
+        .save_with_format("output/v.png", ImageFormat::Png)
         .unwrap_or_else(|_| {
             println!("[ERROR] 保存 V 图像失败，考虑手动新建一个名为 output 的子文件夹");
         });
     rgb_img
-        .save_with_format("output/initial_yuv_to_rgb.tiff", ImageFormat::Tiff)
+        .save_with_format("output/initial_yuv_to_rgb.png", ImageFormat::Png)
         .unwrap_or_else(|_| {
             println!("[ERROR] 保存 RGB 图像失败，考虑手动新建一个名为 output 的子文件夹");
         });
