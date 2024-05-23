@@ -78,7 +78,7 @@ impl QuantizedDu {
 
         for x in 0..8 {
             for y in 0..8 {
-                ret[x][y] = (input[x][y] as i16 * qt[x][y] as i16) as f64;
+                ret[x][y] = (input[x][y] * qt[x][y] as i16) as f64;
             }
         }
 

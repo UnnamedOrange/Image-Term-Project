@@ -66,7 +66,7 @@ pub struct DQT {
     /// 量化表的 ID，在原始结构占 1 个字节的低 4 位。
     /// 取值范围是 0 到 3。
     pub id: u8,
-    /// 量化表的值。默认以 16 位精度存储。
+    /// 量化表的值。默认以 16 位精度存储。以 Zigzag 顺序存储！
     pub table: [u16; 64],
 }
 
@@ -359,17 +359,52 @@ impl ToVec for EOI {
 }
 
 impl QuantizationTable {
+    /// 量化表也是 Zigzag 形式存储的！！！
     fn to_dqt(&self, id: u8) -> DQT {
         // 默认 16 位精度。
         let mut table = DQT::default();
         table.id = id;
+
+        let input = &self.0;
+        let output = &mut table.table;
+
+        let mut x = 0;
+        let mut y = 0;
         let mut idx = 0;
-        for i in 0..8 {
-            for j in 0..8 {
-                table.table[idx] = self.0[i][j];
+
+        while idx < output.len() {
+            while idx < output.len() {
+                output[idx] = input[x][y];
                 idx += 1;
+                // 优先处理 y == 7，因为有对角线。
+                if y == 7 {
+                    x += 1;
+                    break;
+                } else if x == 0 {
+                    y += 1;
+                    break;
+                } else {
+                    x -= 1;
+                    y += 1;
+                }
+            }
+            while idx < output.len() {
+                output[idx] = input[x][y];
+                idx += 1;
+                // 优先处理 x == 7，因为有对角线。
+                if x == 7 {
+                    y += 1;
+                    break;
+                } else if y == 0 {
+                    x += 1;
+                    break;
+                } else {
+                    x += 1;
+                    y -= 1;
+                }
             }
         }
+
         table
     }
 }

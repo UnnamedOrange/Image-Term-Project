@@ -79,6 +79,7 @@ fn parse_app0(block: &[u8]) -> io::Result<APP0> {
     Ok(ret)
 }
 
+/// 量化表也是 Zigzag 形式存储的！！！
 fn parse_dqt(block: &[u8]) -> io::Result<QuantizationTable> {
     let mut buf = ByteBuffer::from_bytes(block);
     let mut ret = QuantizationTable(Default::default());
@@ -86,13 +87,50 @@ fn parse_dqt(block: &[u8]) -> io::Result<QuantizationTable> {
     let _id = precision_and_id & 0x0F; // 忽略 ID，假设按顺序。
     let precision = precision_and_id >> 4;
 
-    for i in 0..8 {
-        for j in 0..8 {
-            ret.0[i][j] = if precision == 0 {
+    let output = &mut ret.0;
+
+    let mut x = 0;
+    let mut y = 0;
+    let mut idx = 0;
+
+    while idx < 64 {
+        while idx < 64 {
+            output[x][y] = if precision == 0 {
                 buf.read_u8()? as u16
             } else {
                 buf.read_u16()? as u16
             };
+            idx += 1;
+            // 优先处理 y == 7，因为有对角线。
+            if y == 7 {
+                x += 1;
+                break;
+            } else if x == 0 {
+                y += 1;
+                break;
+            } else {
+                x -= 1;
+                y += 1;
+            }
+        }
+        while idx < 64 {
+            output[x][y] = if precision == 0 {
+                buf.read_u8()? as u16
+            } else {
+                buf.read_u16()? as u16
+            };
+            idx += 1;
+            // 优先处理 x == 7，因为有对角线。
+            if x == 7 {
+                y += 1;
+                break;
+            } else if y == 0 {
+                x += 1;
+                break;
+            } else {
+                x += 1;
+                y -= 1;
+            }
         }
     }
 
