@@ -14,8 +14,11 @@ def imshow(img):
 # %%
 def main():
     img = cv2.imread("cell.png")
-    img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    imshow(img)
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2YUV)
+    plt.imsave("gray.png", img[:, :, 0], cmap="gray")
+    plt.imsave("u.png", img[:, :, 1], cmap="gray")
+    plt.imsave("v.png", img[:, :, 2], cmap="gray")
+    imshow(img[:, :, 0])
 
 
 # %%
