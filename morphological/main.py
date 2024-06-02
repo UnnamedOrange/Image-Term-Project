@@ -69,7 +69,7 @@ def to_binary(img):
     for i in range(img.shape[0]):
         for j in range(img.shape[1]):
             p = img[i, j]
-            if p[0] > 160 and p[2] > 120:
+            if p[0] > 160:
                 ret[i, j] = 255
     return ret
 
@@ -128,21 +128,6 @@ def main():
 
     img = to_binary(img)
     plt.imsave("binary.png", img, cmap="gray")
-    imshow(img)
-
-    img += remove_block(img, 0, lambda x: x <= 4)
-    img -= remove_block(img, 255, lambda x: x <= 4)
-    plt.imsave("remove_small_block.png", img, cmap="gray")
-    imshow(img)
-
-    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3), anchor=(1, 1))
-    img = cv2.morphologyEx(img, cv2.MORPH_OPEN, kernel)
-    plt.imsave("open.png", img, cmap="gray")
-    imshow(img)
-
-    img -= remove_block(img, 255, lambda x: x >= 200)
-    img -= remove_block(img, 255, lambda x: x <= 5)
-    plt.imsave("remove_large_block.png", img, cmap="gray")
     imshow(img)
 
 
