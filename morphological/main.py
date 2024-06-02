@@ -59,6 +59,21 @@ def dilate_outside(img):
     return foreground_mask
 
 
+def to_binary(img):
+    """将图片按照自定义的规则二值化。
+
+    Args:
+        img: YUV 格式的图片。
+    """
+    ret = np.zeros(img.shape[:2], np.uint8)
+    for i in range(img.shape[0]):
+        for j in range(img.shape[1]):
+            p = img[i, j]
+            if p[0] > 160 and p[2] > 120:
+                ret[i, j] = 255
+    return ret
+
+
 # %%
 def main():
     img = cv2.imread("cell.png")
@@ -72,6 +87,10 @@ def main():
     img[mask == 0, :] = [0, 128, 128]
     plt.imsave("dilated_outside.png", cv2.cvtColor(img, cv2.COLOR_YUV2RGB))
     imshow(img[:, :, 0])
+
+    img = to_binary(img)
+    plt.imsave("binary.png", img, cmap="gray")
+    imshow(img)
 
 
 # %%
