@@ -74,6 +74,44 @@ def to_binary(img):
     return ret
 
 
+def remove_block(img, target, len_pred):
+    """去除二值化图像中小的连通块，使得背景更加平滑。
+
+    Args:
+        img: 二值化的图像。
+    """
+    is_visited = np.zeros(img.shape, np.bool_)
+    mask = np.zeros(img.shape, np.uint8)
+    for i in range(img.shape[0]):
+        for j in range(img.shape[1]):
+            if img[i, j] != target or is_visited[i, j]:
+                continue
+            q = queue.Queue()
+            q.put((i, j))
+            is_visited[i, j] = True
+            c = []
+            while not q.empty():
+                x, y = q.get()
+                c.append((x, y))
+                for dx, dy in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
+                    nx, ny = x + dx, y + dy
+                    if (
+                        nx >= 0
+                        and nx < img.shape[0]
+                        and ny >= 0
+                        and ny < img.shape[1]
+                        and not is_visited[nx, ny]
+                        and img[nx, ny] == target
+                    ):
+                        q.put((nx, ny))
+                        is_visited[nx, ny] = True
+
+            if len_pred(len(c)):
+                for x, y in c:
+                    mask[x, y] = 255
+    return mask
+
+
 # %%
 def main():
     img = cv2.imread("cell.png")
@@ -90,6 +128,11 @@ def main():
 
     img = to_binary(img)
     plt.imsave("binary.png", img, cmap="gray")
+    imshow(img)
+
+    img += remove_block(img, 0, lambda x: x <= 4)
+    img -= remove_block(img, 255, lambda x: x <= 4)
+    plt.imsave("remove_small_block.png", img, cmap="gray")
     imshow(img)
 
 
