@@ -135,6 +135,16 @@ def main():
     plt.imsave("remove_small_block.png", img, cmap="gray")
     imshow(img)
 
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3), anchor=(1, 1))
+    img = cv2.morphologyEx(img, cv2.MORPH_OPEN, kernel)
+    plt.imsave("open.png", img, cmap="gray")
+    imshow(img)
+
+    img -= remove_block(img, 255, lambda x: x >= 200)
+    img -= remove_block(img, 255, lambda x: x <= 5)
+    plt.imsave("remove_large_block.png", img, cmap="gray")
+    imshow(img)
+
 
 # %%
 if __name__ == "__main__":
