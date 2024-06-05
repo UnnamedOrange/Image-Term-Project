@@ -112,6 +112,42 @@ def remove_block(img, target, len_pred):
     return mask
 
 
+def generate_pattern(size):
+    """生成一个被一定宽度的 0 值圆环包围的模式。
+
+    Args:
+        size: 模式的大小。圆环比模式略小一些。
+    """
+    pattern = np.empty((size, size), np.uint8)
+    pattern[:, :] = 255
+    cv2.circle(pattern, (size // 2, size // 2), size // 2, 0, 2)
+    return pattern
+
+
+def pattern_match(img, pattern):
+    """使用均方差进行模式匹配，返回滑动窗口模式匹配结果。
+
+    Args:
+        img: 原图像。
+        pattern: 模式图像。
+
+    Returns:
+        滑动窗口模式匹配结果。
+    """
+
+    ret = np.zeros(
+        (img.shape[0] - pattern.shape[0] + 1, img.shape[1] - pattern.shape[1] + 1),
+        np.float32,
+    )
+    for y in range(0, img.shape[0] - pattern.shape[0] + 1):
+        for x in range(0, img.shape[1] - pattern.shape[1] + 1):
+            window = img[y : y + pattern.shape[0], x : x + pattern.shape[1]]
+            mse = np.mean((window - pattern) ** 2)
+            ret[y, x] = mse
+
+    return ret
+
+
 # %%
 def main():
     img = cv2.imread("cell.png")
@@ -129,6 +165,19 @@ def main():
     img = to_binary(img)
     plt.imsave("binary.png", img, cmap="gray")
     imshow(img)
+
+    pattern = generate_pattern(15)
+    plt.imsave("pattern.png", pattern, cmap="gray")
+    imshow(pattern)
+
+    response = pattern_match(img, pattern)
+    plt.imsave("response.png", response, cmap="gray")
+    imshow(response)
+
+    THRESHOLD = 0.33
+    matched = (response < THRESHOLD) * 255
+    plt.imsave("matched.png", matched, cmap="gray")
+    imshow(matched)
 
 
 # %%
