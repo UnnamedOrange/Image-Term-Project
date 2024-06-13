@@ -182,6 +182,23 @@ def main():
     plt.imsave("matched.png", matched, cmap="gray")
     imshow(matched)
 
+    pattern_small = generate_pattern(9)
+    plt.imsave("pattern_small.png", pattern_small, cmap="gray")
+    imshow(pattern_small)
+
+    response_small = pattern_match(img, pattern_small)
+    plt.imsave("response_small.png", response_small, cmap="gray")
+    imshow(response_small)
+
+    THRESHOLD = 0.225
+    matched_small = (response_small < THRESHOLD) * 255
+    plt.imsave("matched_small.png", matched_small, cmap="gray")
+    imshow(matched_small)
+
+    matched_all = matched + matched_small
+    plt.imsave("matched_all.png", matched_all, cmap="gray")
+    imshow(matched_all)
+
 
 # %%
 if __name__ == "__main__":
