@@ -152,14 +152,20 @@ def pattern_match(img, pattern):
 
 
 def flood_fill(img, matched):
-    """将可能的位置填充（实验性）。
+    """将可能的位置填充。
 
     Args:
         img: 原图像（YUV）。
         matched: 模式匹配结果，即所有可能的位置。
+
+    Returns:
+        一个元组：
+          - 被填充了的位置。
+          - 一系列大小。
     """
     is_visited = np.zeros_like(matched, np.bool_)
     mask = np.zeros_like(matched, np.uint8)
+    sizes = []
     for i in range(img.shape[0]):
         for j in range(img.shape[1]):
             if not matched[i, j] or is_visited[i, j]:
@@ -224,8 +230,9 @@ def flood_fill(img, matched):
                                 flag = True
 
                 mask[c[:, 0], c[:, 1]] = 255
+                sizes.append(c.shape[0])
 
-    return mask
+    return mask, sizes
 
 
 # %%
@@ -277,9 +284,16 @@ def main():
     plt.imsave("matched_all.png", matched_all, cmap="gray")
     imshow(matched_all)
 
-    img = flood_fill(yuv_img, matched_all)
+    img, sizes = flood_fill(yuv_img, matched_all)
     plt.imsave("filled.png", img, cmap="gray")
     imshow(img)
+
+    plt.hist(sizes, bins=np.arange(0, 140, 10), edgecolor="black")
+    plt.title("Histogram")
+    plt.xlabel("Size in pixels")
+    plt.ylabel("Frequency")
+    plt.savefig("histogram.png")
+    plt.show()
 
 
 # %%
