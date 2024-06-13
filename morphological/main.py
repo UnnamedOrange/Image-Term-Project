@@ -292,6 +292,7 @@ def main():
     plt.title("Histogram")
     plt.xlabel("Size in pixels")
     plt.ylabel("Frequency")
+    plt.tight_layout()
     plt.savefig("histogram.png")
     plt.show()
 
