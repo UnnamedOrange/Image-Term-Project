@@ -207,6 +207,22 @@ def flood_fill(img, matched):
                 and abs(mean[2] - 128) < 8
                 and (s <= 16 or c.shape[0] / s > 0.65)
             ):
+                flag = True
+                while flag:
+                    flag = False
+                    for x in range(min_x, max_x + 1):
+                        for y in range(min_y, max_y + 1):
+                            if np.any(np.all(c == (x, y), axis=1)):
+                                continue
+                            n = 0
+                            for dx, dy in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
+                                nx, ny = x + dx, y + dy
+                                if np.any(np.all(c == (nx, ny), axis=1)):
+                                    n += 1
+                            if n >= 3:
+                                c = np.append(c, [[x, y]], axis=0)
+                                flag = True
+
                 mask[c[:, 0], c[:, 1]] = 255
 
     return mask
