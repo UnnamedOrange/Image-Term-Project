@@ -151,10 +151,72 @@ def pattern_match(img, pattern):
     return ret
 
 
+def flood_fill(img, matched):
+    """将可能的位置填充（实验性）。
+
+    Args:
+        img: 原图像（YUV）。
+        matched: 模式匹配结果，即所有可能的位置。
+    """
+    is_visited = np.zeros_like(matched, np.bool_)
+    mask = np.zeros_like(matched, np.uint8)
+    for i in range(img.shape[0]):
+        for j in range(img.shape[1]):
+            if not matched[i, j] or is_visited[i, j]:
+                continue
+            q = queue.Queue()
+            q.put((i, j))
+            is_visited[i, j] = True
+            c = []
+            while not q.empty():
+                x, y = q.get()
+                c.append((x, y))
+                for dx, dy in [
+                    (1, 0),
+                    (-1, 0),
+                    (0, 1),
+                    (0, -1),
+                    (1, 1),
+                    (1, -1),
+                    (-1, 1),
+                    (-1, -1),
+                ]:
+                    nx, ny = x + dx, y + dy
+                    if (
+                        nx >= 0
+                        and nx < img.shape[0]
+                        and ny >= 0
+                        and ny < img.shape[1]
+                        and not is_visited[nx, ny]
+                        and abs(int(img[x, y, 0]) - img[nx, ny, 0]) < 18
+                    ):
+                        q.put((nx, ny))
+                        is_visited[nx, ny] = True
+
+            c = np.array(c)
+            mean = np.average(img[c[:, 0], c[:, 1], :], axis=0)
+            min_x = np.min(c[:, 0])
+            max_x = np.max(c[:, 0])
+            min_y = np.min(c[:, 1])
+            max_y = np.max(c[:, 1])
+            s = (max_x - min_x + 1) * (max_y - min_y + 1)
+
+            if (
+                mean[0] > 200
+                and mean[1] < 141
+                and abs(mean[2] - 128) < 8
+                and (s <= 16 or c.shape[0] / s > 0.65)
+            ):
+                mask[c[:, 0], c[:, 1]] = 255
+
+    return mask
+
+
 # %%
 def main():
     img = cv2.imread("cell.png")
     img = cv2.cvtColor(img, cv2.COLOR_BGR2YUV)
+    yuv_img = img
     plt.imsave("gray.png", img[:, :, 0], cmap="gray")
     plt.imsave("u.png", img[:, :, 1], cmap="gray")
     plt.imsave("v.png", img[:, :, 2], cmap="gray")
@@ -198,6 +260,10 @@ def main():
     matched_all = matched + matched_small
     plt.imsave("matched_all.png", matched_all, cmap="gray")
     imshow(matched_all)
+
+    img = flood_fill(yuv_img, matched_all)
+    plt.imsave("filled.png", img, cmap="gray")
+    imshow(img)
 
 
 # %%
