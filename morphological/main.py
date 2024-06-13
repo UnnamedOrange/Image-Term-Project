@@ -135,15 +135,18 @@ def pattern_match(img, pattern):
         滑动窗口模式匹配结果。
     """
 
-    ret = np.zeros(
-        (img.shape[0] - pattern.shape[0] + 1, img.shape[1] - pattern.shape[1] + 1),
-        np.float32,
-    )
+    ret = np.empty_like(img, np.float32)
+    ret.fill(np.inf)
     for y in range(0, img.shape[0] - pattern.shape[0] + 1):
         for x in range(0, img.shape[1] - pattern.shape[1] + 1):
             window = img[y : y + pattern.shape[0], x : x + pattern.shape[1]]
             mse = np.mean((window - pattern) ** 2)
-            ret[y, x] = mse
+            ret[y + pattern.shape[0] // 2, x + pattern.shape[1] // 2] = mse
+
+    # Fill the edge for a better appearance.
+    ret[ret == np.inf] = np.max(
+        ret[pattern.shape[0] : -pattern.shape[0], pattern.shape[1] : -pattern.shape[1]]
+    )
 
     return ret
 
